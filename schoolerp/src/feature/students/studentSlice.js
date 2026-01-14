@@ -1,7 +1,9 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
 
-const API_URL = "http://localhost:5000/api/student";
+// const API_URL = "http://localhost:5000/api/student";
+const API_URL = "https://schoolerp-1xul.onrender.com/api/student";
+//  https://schoolerp-1xul.onrender.com
 
 // Get Student Profile
 export const getStudentProfile = createAsyncThunk(

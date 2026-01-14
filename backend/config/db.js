@@ -1,12 +1,25 @@
-import mongoose from "mongoose";
+import { MongoClient } from "mongodb";
+import dotenv from "dotenv";
+
+dotenv.config();
+
+let db;
 
 const connectDB = async () => {
   try {
-    await mongoose.connect(process.env.MONGO_URI);
-    console.log("MongoDB Connected");
-  } catch (error) {
-    console.error("MongoDB Error:", error.message);
-    process.exit(1);
+    if (db) return db;
+
+    const client = new MongoClient(process.env.MONGO_URI);
+    await client.connect();
+
+    console.log("MongoDB Connected Successfully 🚀");
+
+    db = client.db("schoolERP"); // <-- Must match DB name
+    return db;
+
+  } catch (err) {
+    console.error("MongoDB Connection Failed ❌", err.message);
+    throw err;
   }
 };
 

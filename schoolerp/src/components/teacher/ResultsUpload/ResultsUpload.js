@@ -10,7 +10,7 @@ import {
   clearSuccess
 } from "../../../feature/teachers/teacherSlice";
 
-export default function ResultsUpload(teacherId ) {
+export default function ResultsUpload( ) {
   const dispatch = useDispatch();
 
   // ===== REDUX STATE =====
@@ -23,7 +23,7 @@ export default function ResultsUpload(teacherId ) {
     success
   } = useSelector((state) => state.teacher);
 
-//   let teacherId = teacherId;
+  let teacherId = 'T-101';
 
   // ===== LOCAL STATE =====
   const [selectedExam, setSelectedExam] = useState("");

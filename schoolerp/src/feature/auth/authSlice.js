@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
-
+import API from "./axios";
 export const validateToken = createAsyncThunk(
   "auth/validateToken",
   async (_, thunkAPI) => {
@@ -8,7 +8,7 @@ export const validateToken = createAsyncThunk(
       const token = localStorage.getItem("token");
       if (!token) throw new Error("No token");
 
-      const res = await axios.get("/api/auth/validate", {
+      const res = await API.get("/api/auth/validate", {
         headers: { Authorization: `Bearer ${token}` }
       });
 

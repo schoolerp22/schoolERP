@@ -82,28 +82,50 @@ router.post("/:teacherId/attendance", async (req, res) => {
   try {
     const db = getDB(req);
     const { date, classSection, attendance } = req.body;
-    // attendance: [{ admission_no: "2026-001", status: "Present" }, ...]
-    
+    const teacherId = req.params.teacherId;
+
+    //  Fetch teacher details
+    const teacher = await db
+      .collection("teachers")
+      .findOne({ teacher_id: teacherId });
+
+    if (!teacher) {
+      return res.status(404).json({ message: "Teacher not found" });
+    }
+
+    const teacherName = teacher.personal_details?.name 
+      || `${teacher.personal_details?.first_name || ""} ${teacher.personal_details?.last_name || ""}`.trim();
+
+    //  Prepare attendance records
     const attendanceRecords = attendance.map(att => ({
       admission_no: att.admission_no,
       date: new Date(date),
       status: att.status,
-      marked_by: req.params.teacherId,
       class_section: classSection,
+
+      // store both
+      marked_by_id: teacherId,
+      marked_by_name: teacherName,
+
       created_at: new Date()
     }));
-    
-    // Insert into attendance collection (create if doesn't exist)
-    const result = await db.collection("attendance").insertMany(attendanceRecords);
-    
-    res.json({ 
-      message: "Attendance marked successfully", 
-      count: result.insertedCount 
+
+    //  Insert records
+    const result = await db
+      .collection("attendance")
+      .insertMany(attendanceRecords);
+
+    res.json({
+      message: "Attendance marked successfully",
+      count: result.insertedCount
     });
+
   } catch (error) {
+    console.error("Attendance insert error:", error);
     res.status(500).json({ message: error.message });
   }
 });
+
 
 // @route   GET /api/teacher/:teacherId/attendance/:date/:classSection
 // @desc    Get attendance for a specific date and class
@@ -128,11 +150,18 @@ router.get("/:teacherId/attendance/:date/:classSection", async (req, res) => {
 router.post("/:teacherId/homework", async (req, res) => {
   try {
     const db = getDB(req);
-    const { classSection, subject, topic, dueDate, description } = req.body;
-    
+    const { classSection, subject, topic, dueDate, description,teacher } = req.body;
+      if (!teacher || !teacher.id || !teacher.name) {
+      return res.status(400).json({ message: "Teacher details are required" });
+    }
+
     const homework = {
       teacher_id: req.params.teacherId,
       class_section: classSection,
+      teacher: {
+        id: teacher.id,
+        name: teacher.name
+      },
       subject,
       topic,
       description,
@@ -150,16 +179,17 @@ router.post("/:teacherId/homework", async (req, res) => {
         $push: { 
           homework_assigned: {
             class: classSection,
+             subject,
             topic,
-            due_date: dueDate
+            due_date:new Date(dueDate)
           }
         }
       }
     );
     
-    res.json({ 
-      message: "Homework assigned successfully", 
-      homeworkId: result.insertedId 
+    res.status(201).json({
+      message: "Homework assigned successfully",
+      homeworkId: result.insertedId
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -187,24 +217,39 @@ router.get("/:teacherId/homework", async (req, res) => {
 router.post("/:teacherId/announcement", async (req, res) => {
   try {
     const db = getDB(req);
-    const { title, message, classSection, priority } = req.body;
-    
+
+    const {
+      title,
+      message,
+      classSection,
+      priority,
+      teacher // ✅ destructure teacher
+    } = req.body;
+
     const announcement = {
-      teacher_id: req.params.teacherId,
+      teacher: {
+        id: teacher?.id || req.params.teacherId,
+        name: teacher?.name || "Unknown Teacher"
+      },
+
       title,
       message,
       class_section: classSection || "All",
       priority: priority || "Normal",
+
       created_at: new Date(),
       status: "Active"
     };
-    
-    const result = await db.collection("announcements").insertOne(announcement);
-    
-    res.json({ 
-      message: "Announcement created successfully", 
-      announcementId: result.insertedId 
+
+    const result = await db
+      .collection("announcements")
+      .insertOne(announcement);
+
+    res.json({
+      message: "Announcement created successfully",
+      announcementId: result.insertedId
     });
+
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -216,9 +261,17 @@ router.get("/:teacherId/announcements", async (req, res) => {
   try {
     const db = getDB(req);
     
-    const announcements = await db.collection("announcements").find({
-      teacher_id: req.params.teacherId
-    }).sort({ created_at: -1 }).toArray();
+    const announcements = await db
+  .collection("announcements")
+  .find({
+    $or: [
+      { teacher_id: req.params.teacherId },
+      { "teacher.id": req.params.teacherId }
+    ]
+  })
+  .sort({ created_at: -1 })
+  .toArray();
+
     
     res.json(announcements);
   } catch (error) {
@@ -391,5 +444,6 @@ router.post("/:teacherId/reset-student-password", async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 });
+
 
 export default router;

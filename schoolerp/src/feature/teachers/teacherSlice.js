@@ -2,7 +2,8 @@ import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
 
 // const API_URL = "http://localhost:5000/api/teacher";
-const API_URL = "https://schoolerp-1xul.onrender.com/api/teacher";
+// const API_URL = "https://schoolerp-1xul.onrender.com/api/teacher";
+ const API_URL =`${process.env.REACT_APP_API_URL}/api/teacher`
  
 
 // Get teacher profile
@@ -101,7 +102,7 @@ export const createAnnouncement = createAsyncThunk(
   "teacher/createAnnouncement",
   async ({ teacherId, announcementData }, { rejectWithValue }) => {
     try {
-      const response = await axios.post(`${API_URL}/${teacherId}/announcement`, announcementData);
+      const response = await axios.post(`${API_URL}/${teacherId}/announcements`, announcementData);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response.data);
@@ -161,6 +162,133 @@ export const getDashboardStats = createAsyncThunk(
   }
 );
 
+// ========== NEW RESULTS MANAGEMENT ACTIONS ==========
+
+// Get marking scheme
+export const getMarkingScheme = createAsyncThunk(
+  "teacher/getMarkingScheme",
+  async ({ teacherId, classNum, year = "2024-25" }, { rejectWithValue }) => {
+    try {
+      const response = await axios.get(
+        `${API_URL}/${teacherId}/marking-scheme/${classNum}?year=${year}`
+      );
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || error.message);
+    }
+  }
+);
+
+// Upload results
+export const uploadResults = createAsyncThunk(
+  "teacher/uploadResults",
+  async ({ teacherId, resultsData }, { rejectWithValue }) => {
+    try {
+      const response = await axios.post(
+        `${API_URL}/${teacherId}/results/upload`,
+        resultsData
+      );
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || error.message);
+    }
+  }
+);
+
+// Get class results
+export const getClassResults = createAsyncThunk(
+  "teacher/getClassResults",
+  async ({ teacherId, classNum, section, params = {} }, { rejectWithValue }) => {
+    try {
+      const query = new URLSearchParams(params).toString();
+      const response = await axios.get(
+        `${API_URL}/${teacherId}/results/${classNum}/${section}?${query}`
+      );
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || error.message);
+    }
+  }
+);
+
+// Update result
+export const updateResult = createAsyncThunk(
+  "teacher/updateResult",
+  async ({ teacherId, resultId, updateData }, { rejectWithValue }) => {
+    try {
+      const response = await axios.put(
+        `${API_URL}/${teacherId}/results/${resultId}`,
+        updateData
+      );
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || error.message);
+    }
+  }
+);
+
+// Publish results
+export const publishResults = createAsyncThunk(
+  "teacher/publishResults",
+  async ({ teacherId, publishData }, { rejectWithValue }) => {
+    try {
+      const response = await axios.post(
+        `${API_URL}/${teacherId}/results/publish`,
+        publishData
+      );
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || error.message);
+    }
+  }
+);
+
+// Delete result
+export const deleteResult = createAsyncThunk(
+  "teacher/deleteResult",
+  async ({ teacherId, resultId }, { rejectWithValue }) => {
+    try {
+      const response = await axios.delete(
+        `${API_URL}/${teacherId}/results/${resultId}`
+      );
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || error.message);
+    }
+  }
+);
+
+// Get results dashboard stats
+export const getResultsStats = createAsyncThunk(
+  "teacher/getResultsStats",
+  async ({ teacherId, year = "2024-25" }, { rejectWithValue }) => {
+    try {
+      const response = await axios.get(
+        `${API_URL}/${teacherId}/results/stats/dashboard?year=${year}`
+      );
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || error.message);
+    }
+  }
+);
+
+// Get class performance comparison
+export const getClassComparison = createAsyncThunk(
+  "teacher/getClassComparison",
+  async ({ teacherId, params = {} }, { rejectWithValue }) => {
+    try {
+      const query = new URLSearchParams(params).toString();
+      const response = await axios.get(
+        `${API_URL}/${teacherId}/results/stats/class-comparison?${query}`
+      );
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || error.message);
+    }
+  }
+);
+
 const initialState = {
   profile: null,
   students: [],
@@ -170,6 +298,12 @@ const initialState = {
   announcements: [],
   leaveRequests: [],
   dashboardStats: null,
+  // results state
+  markingScheme: null,
+  classResults: [],
+  resultsStats: null,
+  classComparison: [],
+
   loading: false,
   error: null,
   success: false,
@@ -188,6 +322,12 @@ const teacherSlice = createSlice({
       state.announcements = [];
       state.leaveRequests = [];
       state.dashboardStats = null;
+      //result
+       state.markingScheme = null;
+      state.classResults = [];
+      state.resultsStats = null;
+      state.classComparison = [];
+
       state.error = null;
       state.success = false;
     },
@@ -254,6 +394,7 @@ const teacherSlice = createSlice({
         state.loading = true;
       })
       .addCase(assignHomework.fulfilled, (state, action) => {
+         console.log("HOMEWORK PAYLOAD 👉", action.payload);
         state.loading = false;
         state.success = true;
       })
@@ -263,9 +404,9 @@ const teacherSlice = createSlice({
       })
       
       // Get Homework
-      .addCase(getHomework.fulfilled, (state, action) => {
-        state.homework = action.payload;
-      })
+.addCase(getHomework.fulfilled, (state, action) => {
+  state.homework = action.payload;
+})
       
       // Create Announcement
       .addCase(createAnnouncement.pending, (state) => {
@@ -306,6 +447,95 @@ const teacherSlice = createSlice({
       // Get Dashboard Stats
       .addCase(getDashboardStats.fulfilled, (state, action) => {
         state.dashboardStats = action.payload;
+      })
+      // ========== NEW RESULTS REDUCERS ==========
+      
+      // Get Marking Scheme
+      .addCase(getMarkingScheme.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(getMarkingScheme.fulfilled, (state, action) => {
+        state.loading = false;
+        state.markingScheme = action.payload;
+      })
+      .addCase(getMarkingScheme.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // Upload Results
+      .addCase(uploadResults.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(uploadResults.fulfilled, (state, action) => {
+        state.loading = false;
+        state.success = true;
+      })
+      .addCase(uploadResults.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // Get Class Results
+      .addCase(getClassResults.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(getClassResults.fulfilled, (state, action) => {
+        state.loading = false;
+        state.classResults = action.payload;
+      })
+      .addCase(getClassResults.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // Update Result
+      .addCase(updateResult.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(updateResult.fulfilled, (state, action) => {
+        state.loading = false;
+        state.success = true;
+      })
+      .addCase(updateResult.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // Publish Results
+      .addCase(publishResults.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(publishResults.fulfilled, (state, action) => {
+        state.loading = false;
+        state.success = true;
+      })
+      .addCase(publishResults.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // Delete Result
+      .addCase(deleteResult.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(deleteResult.fulfilled, (state, action) => {
+        state.loading = false;
+        state.success = true;
+      })
+      .addCase(deleteResult.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // Get Results Stats
+      .addCase(getResultsStats.fulfilled, (state, action) => {
+        state.resultsStats = action.payload;
+      })
+
+      // Get Class Comparison
+      .addCase(getClassComparison.fulfilled, (state, action) => {
+        state.classComparison = action.payload;
       });
   },
 });

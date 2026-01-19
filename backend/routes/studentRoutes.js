@@ -66,16 +66,31 @@ router.get("/:studentId/homework", async (req, res) => {
 router.get("/:studentId/attendance", async (req, res) => {
   try {
     const db = getDB(req);
-    const student = await getStudent(db, req.params.studentId);
+    const studentId = req.params.studentId;
 
-    if (!student) return res.status(404).json({ message: "Student not found" });
+    //  Verify student exists
+    const student = await db
+      .collection("student")
+      .findOne({ admission_no: studentId });
 
-    // Return attendance array from student document
-    res.json(student.attendance || []);
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    // Fetch attendance from attendance collection
+    const attendance = await db
+      .collection("attendance")
+      .find({ admission_no: studentId })
+      .sort({ date: 1 })
+      .toArray();
+
+    res.json(attendance);
   } catch (err) {
+    console.error("Attendance fetch error:", err);
     res.status(500).json({ message: err.message });
   }
 });
+
 
 /**
  * GET Exam Marks - NOW RETURNS FROM STUDENT DOCUMENT
@@ -137,22 +152,28 @@ router.get("/:studentId/timetable", async (req, res) => {
     const db = getDB(req);
     const student = await getStudent(db, req.params.studentId);
 
-    if (!student) return res.status(404).json({ message: "Student not found" });
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
 
-    const timetable = await db
-      .collection("timetable")
-      .find({
-        class: student.class,
-        section: student.section,
-      })
-      .sort({ day_index: 1 })
-      .toArray();
+    const record = await db.collection("time_table").findOne({
+      "0.class": student.class,
+      "0.section": student.section,
+    });
 
-    res.json(timetable);
+    if (!record) {
+      return res.status(404).json({ message: "Timetable not found" });
+    }
+
+    // send only timetable object
+    res.json(record["0"].timetable);
+
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
+
+
 
 /**
  * GET Announcements
@@ -182,5 +203,7 @@ router.get("/:studentId/announcements", async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 });
+
+
 
 export default router;

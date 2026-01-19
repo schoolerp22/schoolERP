@@ -11,6 +11,8 @@ import FeesView from "../../components/student/FeesView/FeesView";
 import TransportView from "../../components/student/TransportView/TransportView";
 import TimetableView from "../../components/student/TimetableView/TimetableView";
 import AnnouncementsView from "../../components/student/AnnouncementsView/AnnouncementsView";
+//Import Results Dashboard
+import StudentResultsDashboard from "../../components/student/StudentResultsDashboard/StudentResultsDashboard";
 
 
 import {
@@ -21,12 +23,15 @@ import {
   getPaymentHistory,
   getTransportDetails,
   getTimeTable,
-  getAnnouncements
+  getAnnouncements,
+  // Import results actions
+  getStudentResults,
+  getStudentAnalytics
 } from "../../feature/students/studentSlice";
 
 const StudentDashboard = () => {
   const dispatch = useDispatch();
-  const { profile, homework, attendance, exams, payments, transport, timetable, announcements, loading, error } =
+  const { profile, homework, attendance, exams, payments, transport, timetable, announcements,results, analytics, loading, error } =
     useSelector((state) => state.student);
 
   const [view, setView] = useState("dashboard");
@@ -43,6 +48,18 @@ const StudentDashboard = () => {
     dispatch(getTransportDetails(studentId));
     dispatch(getTimeTable(studentId));
     dispatch(getAnnouncements(studentId));
+
+    // NEW: Load results data
+    if (profile?.admission_no) {
+      dispatch(getStudentResults({ 
+        admissionNo: profile.admission_no, 
+        year: "2024-25" 
+      }));
+      dispatch(getStudentAnalytics({ 
+        admissionNo: profile.admission_no, 
+        year: "2024-25" 
+      }));
+    }
   }, [dispatch, studentId]);
 
   // Show error state
@@ -85,9 +102,18 @@ const StudentDashboard = () => {
       case "transport":
         return <TransportView transport={transport} />;
       case "timetable":
-        return <TimetableView timetable={timetable} />;
+         return <TimetableView  timetable={timetable} />
+
       case "announcements":
         return <AnnouncementsView announcements={announcements} />;
+        case "results":
+        return (
+          <StudentResultsDashboard
+            admissionNo={profile.admission_no}
+            analytics={analytics}
+            results={results}
+          />
+        );
       default:
         return <DashboardView profile={profile} homework={homework} exams={exams} />;
     }

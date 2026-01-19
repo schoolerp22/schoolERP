@@ -5,7 +5,8 @@ import connectDB from "./config/db.js";
 import teacherRoutes from "./routes/teacherRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import studentRoutes from "./routes/studentRoutes.js";
-
+import teacherResultsRoutes from './routes/teacher-results.js';
+import studentResultsRoutes from './routes/student-results.js';
 dotenv.config();
 
 const app = express();
@@ -26,8 +27,12 @@ const startServer = async () => {
       res.send("API is running...");
     });
     
-    app.use("/api/teacher", teacherRoutes);
-    app.use("/api/student", studentRoutes);
+app.use("/api/teacher", teacherRoutes);
+app.use("/api/teacher/results", teacherResultsRoutes);
+
+app.use("/api/student", studentRoutes);
+app.use("/api/student/results", studentResultsRoutes);
+
     
     // Error handling middleware
     app.use((err, req, res, next) => {

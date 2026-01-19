@@ -1,6 +1,6 @@
 import React from "react";
 import {
-  Home, BookOpen, Calendar, Bus, FileText, Bell
+  Home, BookOpen, Calendar, Bus, FileText, Bell, TrendingUp, DollarSign
 } from "lucide-react";
 
 const menuItems = [
@@ -8,7 +8,14 @@ const menuItems = [
   { id: "homework", label: "Homework", icon: BookOpen },
   { id: "attendance", label: "Attendance", icon: Calendar },
   { id: "exam", label: "Exam Marks", icon: FileText },
-  { id: "fees", label: "Fees", icon: FileText },
+  { 
+    id: "results", 
+    label: "My Results", 
+    icon: TrendingUp,
+    badge: "NEW",
+    badgeColor: "bg-green-500"
+  },
+  { id: "fees", label: "Fees", icon: DollarSign },
   { id: "transport", label: "Transport", icon: Bus },
   { id: "timetable", label: "Timetable", icon: Calendar },
   { id: "announcements", label: "Announcements", icon: Bell },

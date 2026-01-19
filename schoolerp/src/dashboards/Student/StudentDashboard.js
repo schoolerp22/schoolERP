@@ -50,16 +50,16 @@ const StudentDashboard = () => {
     dispatch(getAnnouncements(studentId));
 
     // NEW: Load results data
-    if (profile?.admission_no) {
-      dispatch(getStudentResults({ 
-        admissionNo: profile.admission_no, 
-        year: "2024-25" 
-      }));
-      dispatch(getStudentAnalytics({ 
-        admissionNo: profile.admission_no, 
-        year: "2024-25" 
-      }));
-    }
+    // if (profile?.admission_no) {
+    //   dispatch(getStudentResults({ 
+    //     admissionNo: profile.admission_no, 
+    //     year: "2024-25" 
+    //   }));
+    //   dispatch(getStudentAnalytics({ 
+    //     admissionNo: profile.admission_no, 
+    //     year: "2024-25" 
+    //   }));
+    // }
   }, [dispatch, studentId]);
 
   // Show error state

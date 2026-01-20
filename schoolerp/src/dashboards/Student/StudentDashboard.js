@@ -25,8 +25,8 @@ import {
   getTimeTable,
   getAnnouncements,
   // Import results actions
-  getStudentResults,
-  getStudentAnalytics
+  // getStudentResults,
+  // getStudentAnalytics
 } from "../../feature/students/studentSlice";
 
 const StudentDashboard = () => {

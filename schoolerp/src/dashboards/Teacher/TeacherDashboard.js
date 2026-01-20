@@ -738,7 +738,7 @@ const TeacherDashboard = () => {
   const dispatch = useDispatch();
   const { 
     profile, 
-    students, 
+    // students, 
     selectedClassStudents, 
     dashboardStats, 
     leaveRequests,

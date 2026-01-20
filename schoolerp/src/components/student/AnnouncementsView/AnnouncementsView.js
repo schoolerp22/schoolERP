@@ -1,5 +1,5 @@
 import React from "react";
-import { Bell, AlertCircle, Clock } from "lucide-react";
+import { Bell, Clock } from "lucide-react";
 
 const priorityStyles = {
   High: "bg-red-100 text-red-700 border-red-300",

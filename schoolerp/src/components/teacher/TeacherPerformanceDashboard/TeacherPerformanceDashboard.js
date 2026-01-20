@@ -3,7 +3,6 @@ import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, Cart
 import { Users, TrendingUp, Award, FileText, Filter } from 'lucide-react';
 
 export default function TeacherPerformanceDashboard() {
-  const teacherId = "TCH001"; // Get from auth context
   const [stats, setStats] = useState(null);
   const [selectedClass, setSelectedClass] = useState('all');
   const [selectedExam, setSelectedExam] = useState('all');

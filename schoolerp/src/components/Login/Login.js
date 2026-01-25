@@ -5,7 +5,7 @@ import { loginSuccess } from "../../feature/auth/authSlice";
 import { useNavigate } from "react-router-dom";
 const API_URL = `${process.env.REACT_APP_API_URL}/api/auth`;
 export default function Login() {
-  const [userId, setUserId] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   const dispatch = useDispatch();
@@ -15,7 +15,7 @@ export default function Login() {
   const handleLogin = async () => {
     try {
       const res = await axios.post(`${API_URL}/login`, {
-        userId,
+        email,
         password,
       });
 

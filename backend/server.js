@@ -7,6 +7,7 @@ import authRoutes from "./routes/authRoutes.js";
 import studentRoutes from "./routes/studentRoutes.js";
 import teacherResultsRoutes from './routes/teacher-results.js';
 import studentResultsRoutes from './routes/student-results.js';
+import adminRoutes from './routes/adminRoutes.js';
 dotenv.config();
 
 const app = express();
@@ -21,25 +22,27 @@ const startServer = async () => {
   try {
     const db = await connectDB();
     app.locals.db = db; // Make db available to routes
-    
+
     // Routes
     app.get("/", (req, res) => {
       res.send("API is running...");
     });
-    
-app.use("/api/teacher", teacherRoutes);
-app.use("/api/teacher/results", teacherResultsRoutes);
 
-app.use("/api/student", studentRoutes);
-app.use("/api/student/results", studentResultsRoutes);
+    app.use("/api/teacher", teacherRoutes);
+    app.use("/api/teacher/results", teacherResultsRoutes);
 
-    
+    app.use("/api/student", studentRoutes);
+    app.use("/api/student/results", studentResultsRoutes);
+
+    app.use("/api/admin", adminRoutes);
+
+
     // Error handling middleware
     app.use((err, req, res, next) => {
       console.error(err.stack);
       res.status(500).json({ message: "Something went wrong!" });
     });
-    
+
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   } catch (error) {

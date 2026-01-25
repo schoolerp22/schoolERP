@@ -12,11 +12,12 @@ import TeacherDashboard from "./dashboards/Teacher/TeacherDashboard";
 import StudentDashboard from "./dashboards/Student/StudentDashboard";
 import ParentDashboard from "./dashboards/Parent/ParentDashboard";
 
+import ForgotPassword from "./pages/ForgotPassword";
 import Login from "./pages/Login";
 import Unauthorized from "./pages/Unauthorized";
 
 function App() {
-   const dispatch = useDispatch();
+  const dispatch = useDispatch();
 
   useEffect(() => {
     dispatch(validateToken());
@@ -24,13 +25,14 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        
+
         <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/unauthorized" element={<Unauthorized />} />
 
         {/* must be logged in */}
         <Route element={<ProtectedRoute />}>
-          
+
           {/* Super Admin */}
           <Route element={<RoleRoute allowed={["superAdmin"]} />}>
             <Route path="/dashboard/super-admin" element={<SuperAdminDashboard />} />

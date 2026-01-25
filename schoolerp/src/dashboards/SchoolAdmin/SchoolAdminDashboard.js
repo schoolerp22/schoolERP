@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Loader } from 'lucide-react';
 
 // Components
 import Sidebar from '../../components/admin/Sidebar/Sidebar';
@@ -147,7 +146,7 @@ const [studentSort, setStudentSort] = useState('');
       default:
         break;
     }
-  }, [currentView, dispatch, adminId, studentPage, studentSearch, studentFilters, studentSort]);
+  }, [currentView, dispatch, adminId, studentPage, studentSearch, studentFilters, studentSort,teacherPage,teacherSearch]);
 
   // Handle success/error notifications
   useEffect(() => {

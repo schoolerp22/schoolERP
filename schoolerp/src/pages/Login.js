@@ -58,9 +58,10 @@ const handleGoogleLogin = async () => {
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
             Or{" "}
-            <a href="#" className="font-medium text-indigo-600 hover:text-indigo-500">
-              contact your admin if you don't have an account
-            </a>
+        <p className="font-medium text-indigo-600">
+  contact your admin if you don't have an account
+</p>
+
           </p>
         </div>
 

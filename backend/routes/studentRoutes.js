@@ -9,6 +9,12 @@ const normalize = (v) => v.replace(/[\u2010-\u2015]/g, "-").trim();
 
 // Helper to get student
 const getStudent = async (db, studentId) => {
+  // Check if studentId is a valid ObjectId (24 hex chars)
+  if (ObjectId.isValid(studentId) && String(studentId).length === 24) {
+    const student = await db.collection("student").findOne({ _id: new ObjectId(studentId) });
+    if (student) return student;
+  }
+
   return await db.collection("student").findOne({
     admission_no: normalize(studentId)
   });
@@ -69,9 +75,7 @@ router.get("/:studentId/attendance", async (req, res) => {
     const studentId = req.params.studentId;
 
     //  Verify student exists
-    const student = await db
-      .collection("student")
-      .findOne({ admission_no: studentId });
+    const student = await getStudent(db, studentId);
 
     if (!student) {
       return res.status(404).json({ message: "Student not found" });
@@ -80,7 +84,7 @@ router.get("/:studentId/attendance", async (req, res) => {
     // Fetch attendance from attendance collection
     const attendance = await db
       .collection("attendance")
-      .find({ admission_no: studentId })
+      .find({ admission_no: student.admission_no })
       .sort({ date: 1 })
       .toArray();
 
@@ -162,7 +166,7 @@ router.get("/:studentId/timetable", async (req, res) => {
     });
 
     if (!record) {
-      return res.status(404).json({ message: "Timetable not found" });
+      return res.json({ message: "Timetable not present" });
     }
 
     // send only timetable object

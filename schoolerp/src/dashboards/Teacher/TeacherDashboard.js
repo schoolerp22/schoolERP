@@ -27,16 +27,16 @@ import {
 const TeacherDashboard = () => {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
-  console.log("888",user);
-  const { 
-    profile, 
+  console.log("888", user);
+  const {
+    profile,
     // students, 
-    selectedClassStudents, 
-    dashboardStats, 
+    selectedClassStudents,
+    dashboardStats,
     leaveRequests,
-    loading, 
-    error, 
-    success 
+    loading,
+    error,
+    success
   } = useSelector((state) => state.teacher);
 
   const [currentView, setCurrentView] = useState('dashboard');
@@ -54,7 +54,8 @@ const TeacherDashboard = () => {
   useEffect(() => {
     if (profile && profile.assigned_classes && profile.assigned_classes.length > 0) {
       const firstClass = profile.assigned_classes[0];
-      setSelectedClass(`${firstClass.class}-${firstClass.section}`);
+      const hasSection = firstClass.section && firstClass.section !== 'undefined';
+      setSelectedClass(hasSection ? `${firstClass.class}-${firstClass.section}` : `${firstClass.class}`);
     }
   }, [profile]);
 
@@ -94,14 +95,14 @@ const TeacherDashboard = () => {
     switch (currentView) {
       case 'dashboard':
         return (
-          <DashboardView 
+          <DashboardView
             dashboardStats={dashboardStats}
             onViewChange={setCurrentView}
           />
         );
       case 'students':
         return (
-          <StudentsView 
+          <StudentsView
             students={selectedClassStudents}
             selectedClass={selectedClass}
             loading={loading}
@@ -109,7 +110,7 @@ const TeacherDashboard = () => {
         );
       case 'attendance':
         return (
-          <AttendanceView 
+          <AttendanceView
             students={selectedClassStudents}
             selectedClass={selectedClass}
             teacherId={teacherId}
@@ -118,15 +119,15 @@ const TeacherDashboard = () => {
         );
       case 'homework':
         return (
-          <HomeworkView 
+          <HomeworkView
             selectedClass={selectedClass}
             teacherId={teacherId}
             profile={profile}
           />
         );
-        case 'results-upload':
+      case 'results-upload':
         return (
-          <ResultsUpload 
+          <ResultsUpload
             teacherId={teacherId}
             profile={profile}
             selectedClass={selectedClass}
@@ -141,7 +142,7 @@ const TeacherDashboard = () => {
         );
       case 'announcements':
         return (
-          <AnnouncementsView 
+          <AnnouncementsView
             selectedClass={selectedClass}
             teacherId={teacherId}
             profile={profile}
@@ -149,7 +150,7 @@ const TeacherDashboard = () => {
         );
       case 'leaves':
         return (
-          <LeavesView 
+          <LeavesView
             leaveRequests={leaveRequests}
             teacherId={teacherId}
             loading={loading}
@@ -157,7 +158,7 @@ const TeacherDashboard = () => {
         );
       default:
         return (
-          <DashboardView 
+          <DashboardView
             dashboardStats={dashboardStats}
             onViewChange={setCurrentView}
           />
@@ -178,7 +179,7 @@ const TeacherDashboard = () => {
         </div>
       )}
 
-      <Sidebar 
+      <Sidebar
         profile={profile}
         currentView={currentView}
         onViewChange={setCurrentView}
@@ -187,7 +188,7 @@ const TeacherDashboard = () => {
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Header 
+        <Header
           profile={profile}
           currentView={currentView}
           selectedClass={selectedClass}

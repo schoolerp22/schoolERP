@@ -27,6 +27,9 @@ function App() {
       <Routes>
 
         <Route path="/login" element={<Login />} />
+        <Route path="/login/student" element={<Login />} />
+        <Route path="/login/teacher" element={<Login />} />
+        <Route path="/login/admin" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/unauthorized" element={<Unauthorized />} />
 

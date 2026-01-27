@@ -20,22 +20,27 @@ const Header = ({ profile, currentView, selectedClass, onClassChange, leaveReque
           </h2>
           <p className="text-sm text-gray-600 mt-1">{profile.personal_details.email}</p>
         </div>
-        
+
         <div className="flex items-center gap-4">
           {profile.assigned_classes && profile.assigned_classes.length > 0 && (
-            <select 
+            <select
               value={selectedClass}
               onChange={(e) => onClassChange(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
-              {profile.assigned_classes.map(ac => (
-                <option key={`${ac.class}-${ac.section}`} value={`${ac.class}-${ac.section}`}>
-                  Class {ac.class}-{ac.section} ({ac.subject})
-                </option>
-              ))}
+              {profile.assigned_classes.map(ac => {
+                const hasSection = ac.section && ac.section !== 'undefined';
+                const value = hasSection ? `${ac.class}-${ac.section}` : `${ac.class}`;
+                const label = hasSection ? `Class ${ac.class}-${ac.section}` : `Class ${ac.class}`;
+                return (
+                  <option key={value} value={value}>
+                    {label} ({ac.subject})
+                  </option>
+                );
+              })}
             </select>
           )}
-          
+
           <button className="p-2 hover:bg-gray-100 rounded-lg relative">
             <Bell size={20} className="text-gray-600" />
             {leaveRequests && leaveRequests.length > 0 && (

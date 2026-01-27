@@ -12,14 +12,14 @@ const getDB = (req) => req.app.locals.db;
 router.get("/:teacherId/profile", async (req, res) => {
   try {
     const db = getDB(req);
-    const teacher = await db.collection("teachers").findOne({ 
-      teacher_id: req.params.teacherId 
+    const teacher = await db.collection("teachers").findOne({
+      teacher_id: req.params.teacherId
     });
-    
+
     if (!teacher) {
       return res.status(404).json({ message: "Teacher not found" });
     }
-    
+
     res.json(teacher);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -31,27 +31,27 @@ router.get("/:teacherId/profile", async (req, res) => {
 router.get("/:teacherId/students", async (req, res) => {
   try {
     const db = getDB(req);
-    
+
     // First get teacher's assigned classes
-    const teacher = await db.collection("teachers").findOne({ 
-      teacher_id: req.params.teacherId 
+    const teacher = await db.collection("teachers").findOne({
+      teacher_id: req.params.teacherId
     });
-    
+
     if (!teacher) {
       return res.status(404).json({ message: "Teacher not found" });
     }
-    
+
     // Extract class-section combinations
     const classQuery = teacher.assigned_classes.map(ac => ({
       class: ac.class,
       section: ac.section
     }));
-    
+
     // Get all students from those classes
-    const students = await db.collection("students").find({
+    const students = await db.collection("student").find({
       $or: classQuery
     }).toArray();
-    
+
     res.json(students);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -63,18 +63,28 @@ router.get("/:teacherId/students", async (req, res) => {
 router.get("/:teacherId/students/:classSection", async (req, res) => {
   try {
     const db = getDB(req);
+
     const [classNum, section] = req.params.classSection.split("-");
-    
-    const students = await db.collection("student").find({
-      class: classNum,
-      section: section
-    }).toArray();
-    
+
+    let query = {
+      "academic.current_class": Number(classNum)
+    };
+
+    if (section && section !== "undefined" && section !== "null") {
+      query.section = section;
+    }
+
+    const students = await db
+      .collection("student")
+      .find(query)
+      .toArray();
+
     res.json(students);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
+
 
 // @route   POST /api/teacher/:teacherId/attendance
 // @desc    Mark attendance for students
@@ -93,7 +103,7 @@ router.post("/:teacherId/attendance", async (req, res) => {
       return res.status(404).json({ message: "Teacher not found" });
     }
 
-    const teacherName = teacher.personal_details?.name 
+    const teacherName = teacher.personal_details?.name
       || `${teacher.personal_details?.first_name || ""} ${teacher.personal_details?.last_name || ""}`.trim();
 
     //  Prepare attendance records
@@ -133,12 +143,12 @@ router.get("/:teacherId/attendance/:date/:classSection", async (req, res) => {
   try {
     const db = getDB(req);
     const { date, classSection } = req.params;
-    
+
     const attendance = await db.collection("attendance").find({
       date: new Date(date),
       class_section: classSection
     }).toArray();
-    
+
     res.json(attendance);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -150,8 +160,8 @@ router.get("/:teacherId/attendance/:date/:classSection", async (req, res) => {
 router.post("/:teacherId/homework", async (req, res) => {
   try {
     const db = getDB(req);
-    const { classSection, subject, topic, dueDate, description,teacher } = req.body;
-      if (!teacher || !teacher.id || !teacher.name) {
+    const { classSection, subject, topic, dueDate, description, teacher } = req.body;
+    if (!teacher || !teacher.id || !teacher.name) {
       return res.status(400).json({ message: "Teacher details are required" });
     }
 
@@ -169,24 +179,24 @@ router.post("/:teacherId/homework", async (req, res) => {
       assigned_date: new Date(),
       status: "Active"
     };
-    
+
     const result = await db.collection("homework").insertOne(homework);
-    
+
     // Also update teacher's homework_assigned array
     await db.collection("teachers").updateOne(
       { teacher_id: req.params.teacherId },
-      { 
-        $push: { 
+      {
+        $push: {
           homework_assigned: {
             class: classSection,
-             subject,
+            subject,
             topic,
-            due_date:new Date(dueDate)
+            due_date: new Date(dueDate)
           }
         }
       }
     );
-    
+
     res.status(201).json({
       message: "Homework assigned successfully",
       homeworkId: result.insertedId
@@ -201,11 +211,11 @@ router.post("/:teacherId/homework", async (req, res) => {
 router.get("/:teacherId/homework", async (req, res) => {
   try {
     const db = getDB(req);
-    
+
     const homework = await db.collection("homework").find({
       teacher_id: req.params.teacherId
     }).sort({ assigned_date: -1 }).toArray();
-    
+
     res.json(homework);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -260,19 +270,19 @@ router.post("/:teacherId/announcement", async (req, res) => {
 router.get("/:teacherId/announcements", async (req, res) => {
   try {
     const db = getDB(req);
-    
-    const announcements = await db
-  .collection("announcements")
-  .find({
-    $or: [
-      { teacher_id: req.params.teacherId },
-      { "teacher.id": req.params.teacherId }
-    ]
-  })
-  .sort({ created_at: -1 })
-  .toArray();
 
-    
+    const announcements = await db
+      .collection("announcements")
+      .find({
+        $or: [
+          { teacher_id: req.params.teacherId },
+          { "teacher.id": req.params.teacherId }
+        ]
+      })
+      .sort({ created_at: -1 })
+      .toArray();
+
+
     res.json(announcements);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -286,10 +296,10 @@ router.post("/:teacherId/leave-approval", async (req, res) => {
     const db = getDB(req);
     const { leaveId, status, remarks } = req.body;
     // status: "Approved" or "Rejected"
-    
+
     const result = await db.collection("leave_requests").updateOne(
       { _id: new ObjectId(leaveId) },
-      { 
+      {
         $set: {
           status,
           approved_by: req.params.teacherId,
@@ -298,10 +308,10 @@ router.post("/:teacherId/leave-approval", async (req, res) => {
         }
       }
     );
-    
-    res.json({ 
-      message: `Leave request ${status.toLowerCase()}`, 
-      modified: result.modifiedCount 
+
+    res.json({
+      message: `Leave request ${status.toLowerCase()}`,
+      modified: result.modifiedCount
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -313,30 +323,30 @@ router.post("/:teacherId/leave-approval", async (req, res) => {
 router.get("/:teacherId/leave-requests", async (req, res) => {
   try {
     const db = getDB(req);
-    
+
     // Get teacher's classes
-    const teacher = await db.collection("teachers").findOne({ 
-      teacher_id: req.params.teacherId 
+    const teacher = await db.collection("teachers").findOne({
+      teacher_id: req.params.teacherId
     });
-    
+
     const classQuery = teacher.assigned_classes.map(ac => ({
       class: ac.class,
       section: ac.section
     }));
-    
+
     // Get students from those classes
-    const students = await db.collection("students").find({
+    const students = await db.collection("student").find({
       $or: classQuery
     }).toArray();
-    
+
     const studentAdmissionNos = students.map(s => s.admission_no);
-    
+
     // Get leave requests from those students
     const leaveRequests = await db.collection("leave_requests").find({
       admission_no: { $in: studentAdmissionNos },
       status: "Pending"
     }).sort({ request_date: -1 }).toArray();
-    
+
     res.json(leaveRequests);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -348,40 +358,40 @@ router.get("/:teacherId/leave-requests", async (req, res) => {
 router.get("/:teacherId/dashboard-stats", async (req, res) => {
   try {
     const db = getDB(req);
-    
+
     // Get teacher info
-    const teacher = await db.collection("teachers").findOne({ 
-      teacher_id: req.params.teacherId 
+    const teacher = await db.collection("teachers").findOne({
+      teacher_id: req.params.teacherId
     });
-    
+
     const classQuery = teacher.assigned_classes.map(ac => ({
       class: ac.class,
       section: ac.section
     }));
-    
+
     // Total students
-    const totalStudents = await db.collection("students").countDocuments({
+    const totalStudents = await db.collection("student").countDocuments({
       $or: classQuery
     });
-    
+
     // Pending leave requests
-    const students = await db.collection("students").find({
+    const students = await db.collection("student").find({
       $or: classQuery
     }).toArray();
     const studentAdmissionNos = students.map(s => s.admission_no);
-    
+
     const pendingLeaves = await db.collection("leave_requests").countDocuments({
       admission_no: { $in: studentAdmissionNos },
       status: "Pending"
     });
-    
+
     // Active homework
     const activeHomework = await db.collection("homework").countDocuments({
       teacher_id: req.params.teacherId,
       status: "Active",
       due_date: { $gte: new Date() }
     });
-    
+
     // Today's attendance marked
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -389,7 +399,7 @@ router.get("/:teacherId/dashboard-stats", async (req, res) => {
       marked_by: req.params.teacherId,
       date: { $gte: today }
     });
-    
+
     res.json({
       totalStudents,
       pendingLeaves,
@@ -418,7 +428,7 @@ router.post("/:teacherId/reset-student-password", async (req, res) => {
 
     if (!teacher) return res.status(404).json({ message: "Teacher not found" });
 
-    const student = await db.collection("students").findOne({ admission_no });
+    const student = await db.collection("student").findOne({ admission_no });
 
     if (!student) return res.status(404).json({ message: "Student not found" });
 
@@ -434,7 +444,7 @@ router.post("/:teacherId/reset-student-password", async (req, res) => {
 
     const hashed = await bcrypt.hash(newPassword, 10);
 
-    await db.collection("students").updateOne(
+    await db.collection("student").updateOne(
       { admission_no },
       { $set: { password: hashed } }
     );

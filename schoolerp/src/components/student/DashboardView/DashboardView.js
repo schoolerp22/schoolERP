@@ -10,16 +10,16 @@ const DashboardView = ({ profile, homework, exams }) => {
 
       {/* Basic Details */}
       <div className="grid grid-cols-3 gap-4">
-        <Card title="Class" value={`${profile?.class}-${profile?.section}`} />
-        <Card title="Roll No" value={profile?.roll_no} />
-        <Card title="House" value={profile?.house} />
+        <Card title="Class" value={profile?.academic?.current_class || "N/A"} />
+        <Card title="Admission No" value={profile?.creds?.id || profile?.admission_no || "N/A"} />
+        <Card title="Roll No" value={profile?.S?.NO || "N/A"} />
       </div>
 
       {/* New Section: Identity & Parent Details */}
       <div className="mt-6 grid grid-cols-3 gap-4">
-        <Card title="Aadhar Number" value={profile?.identity?.aadhar_no || "N/A"} />
-        <Card title="PAN Number" value={profile?.identity?.pan_no || "N/A"} />
-        <Card title="Student Email" value={profile?.personal_details?.email || "N/A"} />
+        <Card title="Address" value={profile?.personal_details?.address || "N/A"} />
+        <Card title="Caste" value={profile?.personal_details?.caste || "N/A"} />
+        <Card title="DOB" value={profile?.personal_details?.dob || "N/A"} />
       </div>
 
       <div className="mt-6 grid grid-cols-3 gap-4">

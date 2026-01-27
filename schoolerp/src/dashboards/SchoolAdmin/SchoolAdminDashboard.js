@@ -56,7 +56,6 @@ export default function SchoolAdminDashboard() {
     success,
     successMessage,
   } = useSelector((state) => state.admin);
-
   const [currentView, setCurrentView] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [adminId] = useState('ADMIN-001');
@@ -100,11 +99,11 @@ export default function SchoolAdminDashboard() {
 
   //sort
   const [studentFilters, setStudentFilters] = useState({
-  class: '',
-  section: '',
-  year: ''
-});
-const [studentSort, setStudentSort] = useState('');
+    class: '',
+    section: '',
+    year: ''
+  });
+  const [studentSort, setStudentSort] = useState('');
 
   // Initial data load
   useEffect(() => {
@@ -120,19 +119,19 @@ const [studentSort, setStudentSort] = useState('');
           params: { page: teacherPage, search: teacherSearch }
         }));
         break;
-   case 'students':
-      dispatch(getAllStudents({
-        adminId,
-        params: { 
-          page: studentPage, 
-          search: studentSearch,
-          class: studentFilters.class,
-          section: studentFilters.section,
-          year: studentFilters.year,
-          sortBy: studentSort
-        }
-      }));
-      break;
+      case 'students':
+        dispatch(getAllStudents({
+          adminId,
+          params: {
+            page: studentPage,
+            search: studentSearch,
+            class: studentFilters.class,
+            section: studentFilters.section,
+            year: studentFilters.year,
+            sortBy: studentSort
+          }
+        }));
+        break;
       case 'reports':
         dispatch(getTeacherReports(adminId));
         dispatch(getStudentReports({ adminId }));
@@ -146,7 +145,7 @@ const [studentSort, setStudentSort] = useState('');
       default:
         break;
     }
-  }, [currentView, dispatch, adminId, studentPage, studentSearch, studentFilters, studentSort,teacherPage,teacherSearch]);
+  }, [currentView, dispatch, adminId, studentPage, studentSearch, studentFilters, studentSort, teacherPage, teacherSearch]);
 
   // Handle success/error notifications
   useEffect(() => {
@@ -174,13 +173,13 @@ const [studentSort, setStudentSort] = useState('');
 
   //sort
   const handleStudentFilterChange = (filters) => {
-  setStudentFilters(filters);
-  setStudentPage(1); // Reset to first page when filtering
-};
+    setStudentFilters(filters);
+    setStudentPage(1); // Reset to first page when filtering
+  };
 
-const handleStudentSortChange = (sort) => {
-  setStudentSort(sort);
-};
+  const handleStudentSortChange = (sort) => {
+    setStudentSort(sort);
+  };
 
   // Teacher handlers
   const handleTeacherSearch = (search) => {
@@ -314,19 +313,19 @@ const handleStudentSortChange = (sort) => {
         );
       case 'students':
         return (
- <StudentsManagementView
-  students={students}
-  pagination={studentsPagination}
-  loading={loading}
-  onAdd={handleAddStudent}
-  onEdit={handleEditStudent}
-  onDelete={handleDeleteStudent}
-  onView={handleViewStudent}
-  onSearch={handleStudentSearch}
-  onPageChange={handleStudentPageChange}
-  onFilterChange={handleStudentFilterChange}
-  onSortChange={handleStudentSortChange}
-/>
+          <StudentsManagementView
+            students={students}
+            pagination={studentsPagination}
+            loading={loading}
+            onAdd={handleAddStudent}
+            onEdit={handleEditStudent}
+            onDelete={handleDeleteStudent}
+            onView={handleViewStudent}
+            onSearch={handleStudentSearch}
+            onPageChange={handleStudentPageChange}
+            onFilterChange={handleStudentFilterChange}
+            onSortChange={handleStudentSortChange}
+          />
         );
       case 'reports':
         return (

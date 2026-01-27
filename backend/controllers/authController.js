@@ -11,25 +11,69 @@ const generateToken = (id, role) => {
   });
 };
 
-// --- Helper to find user across collections ---
-const findUserByEmail = async (db, email) => {
-  // Check Admin (try 'schoolAdmin' first as per user report, then 'admin')
-  let admin = await db.collection("schoolAdmin").findOne({ email });
-  if (admin) return { user: admin, role: "schoolAdmin", collection: "schoolAdmin" };
+// --- Helper to find user by ID/Email and Role ---
+const findUser = async (db, loginId, role) => {
+  // Normalize string (remove special hyphens etc if copied from docs)
+  const id = String(loginId).trim();
+  const isEmail = id.includes("@");
 
-  admin = await db.collection("admin").findOne({ email });
-  if (admin) return { user: admin, role: "schoolAdmin", collection: "admin" };
+  if (role === 'student') {
+    // Search by creds.id, admission_no, or email
+    const query = {
+      $or: [
+        { "creds.id": id },
+        { admission_no: id },
+        { "personal_details.email": id }
+      ]
+    };
+    const student = await db.collection("student").findOne(query);
+    if (student) return { user: student, role: "student", collection: "student" };
+  }
 
-  // Check Teacher (email is in personal_details.email)
-  const teacher = await db.collection("teachers").findOne({ "personal_details.email": email });
-  if (teacher) return { user: teacher, role: "teacher", collection: "teachers" };
+  if (role === 'teacher') {
+    // Search by teacher_id or email
+    const query = {
+      $or: [
+        { "creds.id": id },
+        { teacher_id: id },
+        { "personal_details.email": id }
+      ]
+    };
+    const teacher = await db.collection("teachers").findOne(query);
+    if (teacher) return { user: teacher, role: "teacher", collection: "teachers" };
+  }
 
-  // Check Student (email is in personal_details.email)
-  const student = await db.collection("student").findOne({ "personal_details.email": email });
-  if (student) return { user: student, role: "student", collection: "student" };
+  if (role === 'schoolAdmin') {
+    // Search by admin_id/username or email 
+    const query = {
+      $or: [
+        { admin_id: id },
+        { email: id }
+      ]
+    };
 
-  // Check Parent (email checks usually require checking student's parent_record but simplified here or separate logic needed if parents have distinct login)
-  // Assuming parent login mimics student or has own collection later. For now, skipping specific 'parent' collection check unless it exists.
+    let admin = await db.collection("schoolAdmin").findOne(query);
+    if (admin) return { user: admin, role: "schoolAdmin", collection: "schoolAdmin" };
+
+    // Also check generic 'admin' collection just in case
+    admin = await db.collection("admin").findOne(query);
+    if (admin) return { user: admin, role: "schoolAdmin", collection: "admin" };
+  }
+
+  // Fallback: If no role specified or not found in specific role, try global search (legacy behavior)
+  if (!role) {
+    let admin = await db.collection("schoolAdmin").findOne({ email: id });
+    if (admin) return { user: admin, role: "schoolAdmin", collection: "schoolAdmin" };
+
+    admin = await db.collection("admin").findOne({ email: id });
+    if (admin) return { user: admin, role: "schoolAdmin", collection: "admin" };
+
+    const teacher = await db.collection("teachers").findOne({ "personal_details.email": id });
+    if (teacher) return { user: teacher, role: "teacher", collection: "teachers" };
+
+    const student = await db.collection("student").findOne({ "personal_details.email": id });
+    if (student) return { user: student, role: "student", collection: "student" };
+  }
 
   return null;
 };
@@ -41,52 +85,65 @@ export const validateUser = (req, res) => {
 export const loginUser = async (req, res) => {
   try {
     const db = getDB(req);
-    const { email, userId, password, googleToken } = req.body;
-    const userEmail = email || userId;
-    console.log("userEmail", userEmail);
+    const { email, userId, password, googleToken, role } = req.body; // Added role
+    const loginId = userId || email;
+
+    console.log(`Login Attempt: ID=${loginId}, Role=${role || 'Auto-detect'}`);
+
     if (googleToken) {
       // --- GOOGLE LOGIN ---
-      // Verify googleToken with Firebase Admin SDK or client-side token info
-      // Ideally verify token backend-side using firebase-admin, but for simplicity we'll assume email is trusted from client if passed after firebase auth
-      // SECURITY NOTE: In production, verify the ID token using firebase-admin SDK.
-
-      const found = await findUserByEmail(db, userEmail);
+      // For google login, we usually rely on email.
+      const found = await findUser(db, loginId, role);
       if (!found) {
         return res.status(404).json({ message: "User not found. Please contact admin to register first." });
       }
 
-      const { user, role } = found;
-      const token = generateToken(user._id, role);
+      const { user, role: foundRole } = found;
+      const token = generateToken(user._id, foundRole);
       return res.json({
         token,
-        user: { ...user, role },
-        role
+        user: { ...user, role: foundRole },
+        role: foundRole
       });
     }
 
-    // --- EMAIL/PASSWORD LOGIN ---
-    if (!email || !password) {
-      return res.status(400).json({ message: "Email and password required" });
+    // --- ID/PASSWORD LOGIN ---
+    if (!loginId || !password) {
+      return res.status(400).json({ message: "User ID/Email and password required" });
     }
 
-    const found = await findUserByEmail(db, email);
+    const found = await findUser(db, loginId, role);
     if (!found) {
-      return res.status(401).json({ message: "Invalid credentials" });
+      return res.status(401).json({ message: "Invalid credentials or role" });
     }
 
-    const { user, role } = found;
+    const { user, role: foundRole } = found;
 
-    // Compare password
-    const isMatch = await bcrypt.compare(password, user.password || "");
+    // Verify Password
+    let isMatch = false;
+
+    // Special check for Student or Teacher with 'creds' object
+    if ((foundRole === 'student' || foundRole === 'teacher') && user.creds && user.creds.password) {
+      // Direct string comparison as per user request (plain text or specific format)
+      if (String(user.creds.password) === String(password)) {
+        isMatch = true;
+      }
+    }
+
+    // Fallback to bcrypt if not matched above (or not student with creds)
+    if (!isMatch) {
+      isMatch = await bcrypt.compare(password, user.password || "");
+    }
+
     if (!isMatch) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    const token = generateToken(user._id, role);
+    const token = generateToken(user._id, foundRole);
     res.json({
       token,
-      user: { ...user, role },
-      role
+      user: { ...user, role: foundRole },
+      role: foundRole
     });
 
   } catch (error) {

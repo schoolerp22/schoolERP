@@ -31,15 +31,16 @@ import {
 
 const StudentDashboard = () => {
   const dispatch = useDispatch();
-  const { profile, homework, attendance, exams, payments, transport, timetable, announcements,results, analytics, loading, error } =
+  const { profile, homework, attendance, exams, payments, transport, timetable, announcements, results, analytics, loading, error } =
     useSelector((state) => state.student);
-
+  const { user } = useSelector((state) => state.auth);
+  console.log("user------sss", user);
   const [view, setView] = useState("dashboard");
-  const studentId = "2026-001"; // Replace with auth id from context/redux
+  const studentId = user?.admission_no || user?.id; // Replace with auth id from context/redux
 
   useEffect(() => {
     console.log("🔄 Loading student data for:", studentId);
-    
+
     dispatch(getStudentProfile(studentId));
     dispatch(getStudentHomework(studentId));
     dispatch(getStudentAttendance(studentId));
@@ -66,8 +67,8 @@ const StudentDashboard = () => {
   if (error) {
     return (
       <div className="h-screen flex justify-center items-center flex-col">
-        <p className="text-red-500 text-xl mb-4">Error: {error}</p>
-        <button 
+        <p className="text-red-500 text-xl mb-4">Error: {typeof error === 'string' ? error : error?.message || JSON.stringify(error)}</p>
+        <button
           onClick={() => window.location.reload()}
           className="px-4 py-2 bg-indigo-600 text-white rounded"
         >
@@ -102,11 +103,11 @@ const StudentDashboard = () => {
       case "transport":
         return <TransportView transport={transport} />;
       case "timetable":
-         return <TimetableView  timetable={timetable} />
+        return <TimetableView timetable={timetable} />
 
       case "announcements":
         return <AnnouncementsView announcements={announcements} />;
-        case "results":
+      case "results":
         return (
           <StudentResultsDashboard
             admissionNo={profile.admission_no}
@@ -121,12 +122,12 @@ const StudentDashboard = () => {
 
   return (
     <div className="flex h-screen bg-gray-100">
-      <Sidebar 
-        profile={profile} 
-        currentView={view} 
-        onViewChange={setView} 
+      <Sidebar
+        profile={profile}
+        currentView={view}
+        onViewChange={setView}
       />
-      
+
       <main className="flex-1 p-6 overflow-y-auto">
         {renderView()}
       </main>

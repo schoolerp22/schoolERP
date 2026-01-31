@@ -1,4 +1,6 @@
 import React from 'react';
+import { useDispatch } from "react-redux";
+import { logout } from "../../../feature/auth/authSlice";
 import {
     Home,
     Users,
@@ -6,10 +8,12 @@ import {
     BarChart3,
     FileText,
     Menu,
-    X
+    X,
+    LogOut
 } from 'lucide-react';
 
 const Sidebar = ({ currentView, onViewChange, sidebarOpen, setSidebarOpen }) => {
+    const dispatch = useDispatch();
     const navigationItems = [
         { id: 'dashboard', icon: Home, label: 'Dashboard' },
         { id: 'teachers', icon: GraduationCap, label: 'Teachers' },
@@ -39,8 +43,8 @@ const Sidebar = ({ currentView, onViewChange, sidebarOpen, setSidebarOpen }) => 
                         key={item.id}
                         onClick={() => onViewChange(item.id)}
                         className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${currentView === item.id
-                                ? 'bg-indigo-800 text-white'
-                                : 'hover:bg-indigo-800 text-indigo-200'
+                            ? 'bg-indigo-800 text-white'
+                            : 'hover:bg-indigo-800 text-indigo-200'
                             }`}
                     >
                         <item.icon size={20} />
@@ -50,6 +54,13 @@ const Sidebar = ({ currentView, onViewChange, sidebarOpen, setSidebarOpen }) => 
             </nav>
 
             <div className="p-4 border-t border-indigo-800">
+                <button
+                    onClick={() => dispatch(logout())}
+                    className="w-full flex items-center gap-3 p-3 rounded-lg transition-colors hover:bg-red-700 text-red-100 hover:text-white mb-2"
+                >
+                    <LogOut size={20} />
+                    {sidebarOpen && <span className="text-sm font-medium">Logout</span>}
+                </button>
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-indigo-700 flex items-center justify-center font-bold text-sm">
                         AD

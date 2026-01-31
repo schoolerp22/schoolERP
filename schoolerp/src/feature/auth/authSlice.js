@@ -87,10 +87,10 @@ export const resetPasswordAction = createAsyncThunk(
 const authSlice = createSlice({
   name: "auth",
   initialState: {
-    user: null,
-    role: null,
+    user: JSON.parse(localStorage.getItem("user")) || null,
+    role: localStorage.getItem("role") || null,
     token: localStorage.getItem("token") || null,
-    isAuthenticated: false,
+    isAuthenticated: !!localStorage.getItem("token"),
     loading: false,
     error: null,
     message: null,
@@ -105,13 +105,18 @@ const authSlice = createSlice({
       state.error = null;
       state.message = null;
       localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      localStorage.removeItem("role");
     },
     loginSuccess: (state, action) => {
-      state.user = action.payload.user; // This will have teacher_id
+      state.user = action.payload.user;
       state.token = action.payload.token;
       state.role = action.payload.role;
       state.isAuthenticated = true;
       state.error = null;
+      localStorage.setItem("token", action.payload.token);
+      localStorage.setItem("user", JSON.stringify(action.payload.user));
+      localStorage.setItem("role", action.payload.role);
     },
     clearError: (state) => {
       state.error = null;
@@ -127,7 +132,10 @@ const authSlice = createSlice({
         state.loading = false;
         state.isAuthenticated = true;
         state.user = action.payload.user;
-        state.role = action.payload.user?.role || "student"; // Fallback if role missing in user obj
+        state.role = action.payload.user?.role || "student";
+        // Update localStorage to keep it fresh
+        localStorage.setItem("user", JSON.stringify(action.payload.user));
+        if (action.payload.user?.role) localStorage.setItem("role", action.payload.user.role);
       })
       .addCase(validateToken.rejected, (state) => {
         state.loading = false;
@@ -135,6 +143,8 @@ const authSlice = createSlice({
         state.user = null;
         state.role = null;
         localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        localStorage.removeItem("role");
       })
 
       // Login User (Email/Pass)
@@ -146,6 +156,8 @@ const authSlice = createSlice({
         state.user = action.payload.user;
         state.role = action.payload.role;
         localStorage.setItem("token", action.payload.token);
+        localStorage.setItem("user", JSON.stringify(action.payload.user));
+        localStorage.setItem("role", action.payload.role);
       })
       .addCase(loginUser.rejected, (state, action) => {
         state.loading = false;
@@ -161,6 +173,8 @@ const authSlice = createSlice({
         state.user = action.payload.user;
         state.role = action.payload.role;
         localStorage.setItem("token", action.payload.token);
+        localStorage.setItem("user", JSON.stringify(action.payload.user));
+        localStorage.setItem("role", action.payload.role);
       })
       .addCase(googleLogin.rejected, (state, action) => {
         state.loading = false;

@@ -27,7 +27,7 @@ import {
 const TeacherDashboard = () => {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
-  console.log("888", user);
+  console.log("TeacherDashboard Render. User:", user);
   const {
     profile,
     // students, 
@@ -42,13 +42,20 @@ const TeacherDashboard = () => {
   const [currentView, setCurrentView] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedClass, setSelectedClass] = useState('');
-  const [teacherId] = useState(user?.teacher_id); // Get from auth in real app
+
+  const teacherId = user?.teacher_id;
+  console.log("Derived teacherId:", teacherId);
 
   useEffect(() => {
-    dispatch(getTeacherProfile(teacherId));
-    dispatch(getAssignedStudents(teacherId));
-    dispatch(getDashboardStats(teacherId));
-    dispatch(getLeaveRequests(teacherId));
+    if (teacherId) {
+      console.log("Dispatching teacher actions for:", teacherId);
+      dispatch(getTeacherProfile(teacherId));
+      dispatch(getAssignedStudents(teacherId));
+      dispatch(getDashboardStats(teacherId));
+      dispatch(getLeaveRequests(teacherId));
+    } else {
+      console.log("Skipping dispatch - teacherId is missing");
+    }
   }, [dispatch, teacherId]);
 
   useEffect(() => {

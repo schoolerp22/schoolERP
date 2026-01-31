@@ -210,4 +210,62 @@ router.get("/:studentId/announcements", async (req, res) => {
 
 
 
+// @route   POST /api/student/:studentId/leave
+// @desc    Apply for leave
+router.post("/:studentId/leave", async (req, res) => {
+  try {
+    const db = getDB(req);
+    const { from_date, to_date, reason, type } = req.body;
+
+    // Get student details
+    const student = await getStudent(db, req.params.studentId);
+    if (!student) return res.status(404).json({ message: "Student not found" });
+
+    const leaveRequest = {
+      admission_no: student.admission_no, // Link via admission_no as usual
+      student_id: new ObjectId(student._id),
+      student_name: `${student.personal_details.first_name} ${student.personal_details.last_name}`,
+      class: student.class,
+      section: student.section,
+
+      from_date: new Date(from_date),
+      to_date: new Date(to_date),
+      reason,
+      type: type || "General",
+
+      status: "Pending", // Pending, Approved, Rejected
+      request_date: new Date()
+    };
+
+    const result = await db.collection("leave_requests").insertOne(leaveRequest);
+
+    res.json({
+      message: "Leave application submitted successfully",
+      leaveId: result.insertedId
+    });
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   GET /api/student/:studentId/leaves
+// @desc    Get student's leave history
+router.get("/:studentId/leaves", async (req, res) => {
+  try {
+    const db = getDB(req);
+    const student = await getStudent(db, req.params.studentId);
+    if (!student) return res.status(404).json({ message: "Student not found" });
+
+    const leaves = await db.collection("leave_requests")
+      .find({ admission_no: student.admission_no })
+      .sort({ request_date: -1 })
+      .toArray();
+
+    res.json(leaves);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 export default router;

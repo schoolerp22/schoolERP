@@ -3,8 +3,8 @@ import axios from "axios";
 
 // const API_URL = "http://localhost:5000/api/teacher";
 // const API_URL = "https://schoolerp-1xul.onrender.com/api/teacher";
- const API_URL =`${process.env.REACT_APP_API_URL}/api/teacher`
- 
+const API_URL = `${process.env.REACT_APP_API_URL}/api/teacher`
+
 
 // Get teacher profile
 export const getTeacherProfile = createAsyncThunk(
@@ -289,14 +289,45 @@ export const getClassComparison = createAsyncThunk(
   }
 );
 
+// Get Attendance Summary (Weekly/Monthly)
+export const getAttendanceSummary = createAsyncThunk(
+  "teacher/getAttendanceSummary",
+  async ({ teacherId, classSection }, { rejectWithValue }) => {
+    try {
+      const response = await axios.get(`${API_URL}/${teacherId}/attendance-summary?classSection=${classSection}`);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+// Get Approved Leaves
+export const getApprovedLeaves = createAsyncThunk(
+  "teacher/getApprovedLeaves",
+  async ({ teacherId, date, classSection }, { rejectWithValue }) => {
+    try {
+      const response = await axios.get(
+        `${API_URL}/${teacherId}/approved-leaves?date=${date}&classSection=${classSection}`
+      );
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+
 const initialState = {
   profile: null,
   students: [],
   selectedClassStudents: [],
   attendance: [],
+  attendanceSummary: [], // Added for overview
   homework: [],
   announcements: [],
   leaveRequests: [],
+  approvedLeaves: [], // New state for auto-marking
   dashboardStats: null,
   // results state
   markingScheme: null,
@@ -314,16 +345,18 @@ const teacherSlice = createSlice({
   initialState,
   reducers: {
     resetTeacher: (state) => {
+      // ... existing reset logic
       state.profile = null;
       state.students = [];
       state.selectedClassStudents = [];
       state.attendance = [];
+      state.attendanceSummary = [];
       state.homework = [];
       state.announcements = [];
       state.leaveRequests = [];
       state.dashboardStats = null;
       //result
-       state.markingScheme = null;
+      state.markingScheme = null;
       state.classResults = [];
       state.resultsStats = null;
       state.classComparison = [];
@@ -340,6 +373,7 @@ const teacherSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
+      // ... existing reducers ...
       // Get Profile
       .addCase(getTeacherProfile.pending, (state) => {
         state.loading = true;
@@ -352,7 +386,7 @@ const teacherSlice = createSlice({
         state.loading = false;
         state.error = action.payload;
       })
-      
+
       // Get Students
       .addCase(getAssignedStudents.pending, (state) => {
         state.loading = true;
@@ -365,12 +399,12 @@ const teacherSlice = createSlice({
         state.loading = false;
         state.error = action.payload;
       })
-      
+
       // Get Students by Class
       .addCase(getStudentsByClass.fulfilled, (state, action) => {
         state.selectedClassStudents = action.payload;
       })
-      
+
       // Mark Attendance
       .addCase(markAttendance.pending, (state) => {
         state.loading = true;
@@ -383,18 +417,36 @@ const teacherSlice = createSlice({
         state.loading = false;
         state.error = action.payload;
       })
-      
+
       // Get Attendance
       .addCase(getAttendance.fulfilled, (state, action) => {
         state.attendance = action.payload;
       })
-      
+
+      // Get Attendance Summary (NEW)
+      .addCase(getAttendanceSummary.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(getAttendanceSummary.fulfilled, (state, action) => {
+        state.loading = false;
+        state.attendanceSummary = action.payload;
+      })
+      .addCase(getAttendanceSummary.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // Get Approved Leaves
+      .addCase(getApprovedLeaves.fulfilled, (state, action) => {
+        state.approvedLeaves = action.payload;
+      })
+
       // Assign Homework
       .addCase(assignHomework.pending, (state) => {
         state.loading = true;
       })
       .addCase(assignHomework.fulfilled, (state, action) => {
-         console.log("HOMEWORK PAYLOAD 👉", action.payload);
+        console.log("HOMEWORK PAYLOAD 👉", action.payload);
         state.loading = false;
         state.success = true;
       })
@@ -402,12 +454,12 @@ const teacherSlice = createSlice({
         state.loading = false;
         state.error = action.payload;
       })
-      
+
       // Get Homework
-.addCase(getHomework.fulfilled, (state, action) => {
-  state.homework = action.payload;
-})
-      
+      .addCase(getHomework.fulfilled, (state, action) => {
+        state.homework = action.payload;
+      })
+
       // Create Announcement
       .addCase(createAnnouncement.pending, (state) => {
         state.loading = true;
@@ -420,17 +472,17 @@ const teacherSlice = createSlice({
         state.loading = false;
         state.error = action.payload;
       })
-      
+
       // Get Announcements
       .addCase(getAnnouncements.fulfilled, (state, action) => {
         state.announcements = action.payload;
       })
-      
+
       // Get Leave Requests
       .addCase(getLeaveRequests.fulfilled, (state, action) => {
         state.leaveRequests = action.payload;
       })
-      
+
       // Approve Leave
       .addCase(approveLeave.pending, (state) => {
         state.loading = true;
@@ -443,13 +495,13 @@ const teacherSlice = createSlice({
         state.loading = false;
         state.error = action.payload;
       })
-      
+
       // Get Dashboard Stats
       .addCase(getDashboardStats.fulfilled, (state, action) => {
         state.dashboardStats = action.payload;
       })
       // ========== NEW RESULTS REDUCERS ==========
-      
+
       // Get Marking Scheme
       .addCase(getMarkingScheme.pending, (state) => {
         state.loading = true;

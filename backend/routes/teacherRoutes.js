@@ -64,14 +64,14 @@ router.get("/:teacherId/students/:classSection", async (req, res) => {
   try {
     const db = getDB(req);
 
-    const [classNum, section] = req.params.classSection.split("-");
+    const [classNum, section] = req.params.classSection.split(/[-_]/);
 
     let query = {
       "academic.current_class": Number(classNum)
     };
 
     if (section && section !== "undefined" && section !== "null") {
-      query.section = section;
+      query["academic.section"] = section;
     }
 
     const students = await db
@@ -151,6 +151,73 @@ router.get("/:teacherId/attendance/:date/:classSection", async (req, res) => {
 
     res.json(attendance);
   } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   GET /api/teacher/:teacherId/attendance-summary
+// @desc    Get weekly and monthly attendance summary for a class
+router.get("/:teacherId/attendance-summary", async (req, res) => {
+  try {
+    const db = getDB(req);
+    const { classSection } = req.query;
+
+    if (!classSection) {
+      return res.status(400).json({ message: "Class section is required" });
+    }
+
+    // Determine Date Ranges
+    const today = new Date();
+
+    // Start of Week (assuming Monday is start)
+    const currentDay = today.getDay(); // 0 is Sunday
+    const diff = today.getDate() - currentDay + (currentDay === 0 ? -6 : 1);
+    const startOfWeek = new Date(today.setDate(diff));
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    // Reset today for Month calculation
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    // Fetch all attendance for this class within the month (Week covers inside Month usually)
+    const attendanceRecords = await db.collection("attendance").find({
+      class_section: classSection,
+      date: { $gte: startOfMonth }
+    }).toArray();
+
+    // Group by Student
+    const stats = {};
+
+    attendanceRecords.forEach(record => {
+      const studentId = record.admission_no;
+      if (!stats[studentId]) {
+        stats[studentId] = {
+          admission_no: studentId,
+          weekly_present: 0,
+          weekly_total: 0,
+          monthly_present: 0,
+          monthly_total: 0
+        };
+      }
+
+      const recordDate = new Date(record.date);
+      const isPresent = record.status === "Present";
+
+      // Monthly Stats
+      stats[studentId].monthly_total++;
+      if (isPresent) stats[studentId].monthly_present++;
+
+      // Weekly Stats
+      if (recordDate >= startOfWeek) {
+        stats[studentId].weekly_total++;
+        if (isPresent) stats[studentId].weekly_present++;
+      }
+    });
+
+    res.json(Object.values(stats));
+
+  } catch (error) {
+    console.error("Attendance Summary Error:", error);
     res.status(500).json({ message: error.message });
   }
 });
@@ -411,6 +478,56 @@ router.get("/:teacherId/dashboard-stats", async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+
+// @route   GET /api/teacher/:teacherId/approved-leaves
+// @desc    Get students on approved leave for a specific date
+router.get("/:teacherId/approved-leaves", async (req, res) => {
+  try {
+    const db = getDB(req);
+    const { date, classSection } = req.query; // date is YYYY-MM-DD
+
+    if (!date || !classSection) {
+      return res.status(400).json({ message: "Date and class section required" });
+    }
+
+    const checkDate = new Date(date);
+    checkDate.setHours(0, 0, 0, 0);
+    const checkDateEnd = new Date(date);
+    checkDateEnd.setHours(23, 59, 59, 999);
+
+    // Find leaves that are APPROVED and OVERLAP with the checkDate
+    const leaves = await db.collection("leave_requests").find({
+      status: "Approved",
+      // Leave Start <= Check Date AND Leave End >= Check Date 
+      // (Simple check: from_date <= checkDateEnd AND to_date >= checkDate)
+      from_date: { $lte: checkDateEnd },
+      to_date: { $gte: checkDate },
+      // Optional: Filter by class section strictly, or just rely on teacher's view filtering
+      // Adding it for optimization if stored, but 'leave_requests' has 'class' and 'section' fields
+      // Format of classSection param is usually "10-A"
+    }).toArray();
+
+    // Filter by class/section manually if needed or better via query
+    const [classNum, section] = classSection.split("-");
+
+    // The leave request stores class as number usually? Let's check previous insert code
+    // Inserted as: class: student.class, section: student.section
+    // Student document uses 'academic.current_class' (number) usually, but locally stored "class" usually.
+    // Let's filter in memory to be safe against schema variations or add to query if sure.
+
+    const filteredLeaves = leaves.filter(l =>
+      String(l.class) === String(classNum) &&
+      String(l.section) === String(section)
+    );
+
+    res.json(filteredLeaves);
+
+  } catch (error) {
+    console.error("Approved Leaves Error:", error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
 
 // @route POST /api/teacher/:teacherId/reset-student-password
 router.post("/:teacherId/reset-student-password", async (req, res) => {

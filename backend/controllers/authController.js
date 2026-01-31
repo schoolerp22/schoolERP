@@ -68,18 +68,56 @@ const findUser = async (db, loginId, role) => {
     admin = await db.collection("admin").findOne({ email: id });
     if (admin) return { user: admin, role: "schoolAdmin", collection: "admin" };
 
-    const teacher = await db.collection("teachers").findOne({ "personal_details.email": id });
+    // Teacher: search by email OR teacher_id OR creds.id
+    const teacher = await db.collection("teachers").findOne({
+      $or: [
+        { "personal_details.email": id },
+        { teacher_id: id },
+        { "creds.id": id }
+      ]
+    });
     if (teacher) return { user: teacher, role: "teacher", collection: "teachers" };
 
-    const student = await db.collection("student").findOne({ "personal_details.email": id });
+    // Student: search by email OR admission_no OR creds.id
+    const student = await db.collection("student").findOne({
+      $or: [
+        { "personal_details.email": id },
+        { admission_no: id },
+        { "creds.id": id }
+      ]
+    });
     if (student) return { user: student, role: "student", collection: "student" };
   }
 
   return null;
 };
 
-export const validateUser = (req, res) => {
-  res.json({ valid: true, user: req.user });
+export const validateUser = async (req, res) => {
+  try {
+    const db = getDB(req);
+    const { id, role } = req.user; // from token (id is _id)
+
+    if (!id) return res.status(401).json({ valid: false, message: "Invalid token data" });
+
+    let user = null;
+    if (role === 'teacher') {
+      user = await db.collection("teachers").findOne({ _id: new ObjectId(id) });
+    } else if (role === 'student') {
+      user = await db.collection("student").findOne({ _id: new ObjectId(id) });
+    } else if (role === 'schoolAdmin') {
+      user = await db.collection("schoolAdmin").findOne({ _id: new ObjectId(id) });
+      if (!user) user = await db.collection("admin").findOne({ _id: new ObjectId(id) });
+    }
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // Return full user with role
+    res.json({ valid: true, user: { ...user, role } });
+
+  } catch (error) {
+    console.error("Validate User Error:", error);
+    res.status(500).json({ message: "Server Error" });
+  }
 };
 
 export const loginUser = async (req, res) => {

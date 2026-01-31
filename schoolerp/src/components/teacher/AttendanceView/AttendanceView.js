@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Loader, BarChart2, CheckSquare, TrendingUp, AlertCircle, Calendar } from 'lucide-react';
 import { markAttendance, getAttendanceSummary } from '../../../feature/teachers/teacherSlice';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+import { Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell
 } from 'recharts';
 
@@ -65,7 +64,7 @@ const AttendanceView = ({ students, selectedClass, teacherId, loading }) => {
 
   // Filter Top and Bottom students
   const studentStats = attendanceSummary?.student_stats || [];
-  const topStudents = [...studentStats].sort((a, b) => b.percentage - a.percentage).slice(0, 10);
+  // const topStudents = [...studentStats].sort((a, b) => b.percentage - a.percentage).slice(0, 10);
   const lowAttendanceStudents = studentStats.filter(s => s.percentage < 75).sort((a, b) => a.percentage - b.percentage).slice(0, 10);
 
   const pieData = attendanceSummary?.distribution ? [

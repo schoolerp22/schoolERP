@@ -35,9 +35,9 @@ const TeacherDashboard = () => {
     selectedClassStudents,
     dashboardStats,
     leaveRequests,
-    allLeaveRequests,
+
     loadings,
-    loading,
+
     error,
     success
   } = useSelector((state) => state.teacher);

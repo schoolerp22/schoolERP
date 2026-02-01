@@ -2,11 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Users, TrendingUp, Award, FileText, Filter } from 'lucide-react';
 
-export default function TeacherPerformanceDashboard() {
+export default function TeacherPerformanceDashboard({ profile }) {
   const [stats, setStats] = useState(null);
   const [selectedClass, setSelectedClass] = useState('all');
   const [selectedExam, setSelectedExam] = useState('all');
   const [selectedSubject, setSelectedSubject] = useState('all');
+
+  // Dynamic Options from Profile
+  const classOptions = profile?.assigned_classes?.map(ac => `${ac.class}-${ac.section}`) || [];
+  const subjectOptions = profile?.subjects || [];
 
   useEffect(() => {
     loadStats();
@@ -18,20 +22,20 @@ export default function TeacherPerformanceDashboard() {
       total_results_uploaded: 180,
       published_results: 150,
       unpublished_results: 30,
-      
+
       subjects: {
         'Mathematics': { count: 45, avg_percentage: 85.5 },
         'Physics': { count: 45, avg_percentage: 82.3 },
         'Chemistry': { count: 45, avg_percentage: 86.7 },
         'Biology': { count: 45, avg_percentage: 88.2 }
       },
-      
+
       exams: {
         'MID_TERM_1': { count: 60, avg_percentage: 84.2 },
         'TERM_1': { count: 60, avg_percentage: 83.8 },
         'TERM_2': { count: 60, avg_percentage: 86.5 }
       },
-      
+
       grade_distribution: {
         'A+': 45,
         'A': 60,
@@ -41,7 +45,7 @@ export default function TeacherPerformanceDashboard() {
         'D': 3,
         'F': 2
       },
-      
+
       class_performance: [
         { class: '10', section: 'A', avg_percentage: 86.5, total_students: 45 },
         { class: '10', section: 'B', avg_percentage: 84.2, total_students: 45 },
@@ -110,20 +114,19 @@ export default function TeacherPerformanceDashboard() {
               <Filter size={20} className="text-gray-600" />
               <span className="font-medium text-gray-700">Filters:</span>
             </div>
-            
-            <select 
+
+            <select
               value={selectedClass}
               onChange={(e) => setSelectedClass(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">All Classes</option>
-              <option value="10-A">Class 10-A</option>
-              <option value="10-B">Class 10-B</option>
-              <option value="11-A">Class 11-A</option>
-              <option value="11-B">Class 11-B</option>
+              {classOptions.map(cls => (
+                <option key={cls} value={cls}>Class {cls}</option>
+              ))}
             </select>
 
-            <select 
+            <select
               value={selectedExam}
               onChange={(e) => setSelectedExam(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
@@ -134,16 +137,15 @@ export default function TeacherPerformanceDashboard() {
               <option value="TERM_2">Term 2</option>
             </select>
 
-            <select 
+            <select
               value={selectedSubject}
               onChange={(e) => setSelectedSubject(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">All Subjects</option>
-              <option value="Mathematics">Mathematics</option>
-              <option value="Physics">Physics</option>
-              <option value="Chemistry">Chemistry</option>
-              <option value="Biology">Biology</option>
+              {subjectOptions.map(sub => (
+                <option key={sub} value={sub}>{sub}</option>
+              ))}
             </select>
           </div>
         </div>
@@ -223,7 +225,7 @@ export default function TeacherPerformanceDashboard() {
                 <Tooltip />
               </PieChart>
             </ResponsiveContainer>
-            
+
             <div className="mt-4 grid grid-cols-4 gap-2 text-center">
               {gradeDistData.map((grade, idx) => (
                 <div key={grade.name} className="p-2 rounded" style={{ backgroundColor: COLORS[idx % COLORS.length] + '20' }}>
@@ -263,20 +265,20 @@ export default function TeacherPerformanceDashboard() {
               <YAxis yAxisId="right" orientation="right" />
               <Tooltip />
               <Legend />
-              <Line 
+              <Line
                 yAxisId="left"
-                type="monotone" 
-                dataKey="average" 
-                stroke="#8b5cf6" 
+                type="monotone"
+                dataKey="average"
+                stroke="#8b5cf6"
                 strokeWidth={3}
                 name="Average %"
                 dot={{ fill: '#8b5cf6', r: 6 }}
               />
-              <Line 
+              <Line
                 yAxisId="right"
-                type="monotone" 
-                dataKey="students" 
-                stroke="#10b981" 
+                type="monotone"
+                dataKey="students"
+                stroke="#10b981"
                 strokeWidth={2}
                 name="Students"
                 strokeDasharray="5 5"
@@ -290,7 +292,7 @@ export default function TeacherPerformanceDashboard() {
           <div className="p-6 border-b border-gray-200">
             <h3 className="text-xl font-bold text-gray-800">Class-wise Performance Summary</h3>
           </div>
-          
+
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50">
@@ -325,23 +327,21 @@ export default function TeacherPerformanceDashboard() {
                       <div className="text-sm font-medium text-gray-900">{cls.average}%</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        cls.passRate >= 95 ? 'bg-green-100 text-green-800' :
+                      <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${cls.passRate >= 95 ? 'bg-green-100 text-green-800' :
                         cls.passRate >= 90 ? 'bg-blue-100 text-blue-800' :
-                        'bg-yellow-100 text-yellow-800'
-                      }`}>
+                          'bg-yellow-100 text-yellow-800'
+                        }`}>
                         {cls.passRate}%
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="w-full bg-gray-200 rounded-full h-2.5">
-                        <div 
-                          className={`h-2.5 rounded-full ${
-                            cls.average >= 85 ? 'bg-green-600' :
+                        <div
+                          className={`h-2.5 rounded-full ${cls.average >= 85 ? 'bg-green-600' :
                             cls.average >= 75 ? 'bg-blue-600' :
-                            cls.average >= 60 ? 'bg-yellow-600' :
-                            'bg-red-600'
-                          }`}
+                              cls.average >= 60 ? 'bg-yellow-600' :
+                                'bg-red-600'
+                            }`}
                           style={{ width: `${cls.average}%` }}
                         ></div>
                       </div>

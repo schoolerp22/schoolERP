@@ -1,7 +1,8 @@
 import React from 'react';
 import { Search, Loader } from 'lucide-react';
 
-const StudentsView = ({ students, selectedClass, loading }) => {
+const StudentsView = ({ students, selectedClass, loadings }) => {
+  const loading = loadings?.students;
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200">
       <div className="p-6 border-b border-gray-200">

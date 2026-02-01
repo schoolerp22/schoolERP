@@ -7,6 +7,23 @@ const router = express.Router();
 // Middleware to get DB from app
 const getDB = (req) => req.app.locals.db;
 
+// Helper to build class query from assigned classes
+const buildClassQuery = (assignedClasses) => {
+  if (!assignedClasses || assignedClasses.length === 0) return { admission_no: "__NONE__" };
+
+  return {
+    $or: assignedClasses.map(ac => {
+      const q = {
+        "academic.current_class": isNaN(Number(ac.class)) ? ac.class : Number(ac.class)
+      };
+      if (ac.section && ac.section !== "undefined" && ac.section !== "null" && ac.section !== "All") {
+        q["academic.section"] = ac.section;
+      }
+      return q;
+    })
+  };
+};
+
 // @route   GET /api/teacher/:teacherId/profile
 // @desc    Get teacher profile
 router.get("/:teacherId/profile", async (req, res) => {
@@ -42,15 +59,10 @@ router.get("/:teacherId/students", async (req, res) => {
     }
 
     // Extract class-section combinations with correct field paths and NUR capability
-    const classQuery = teacher.assigned_classes.map(ac => ({
-      "academic.current_class": isNaN(Number(ac.class)) ? ac.class : Number(ac.class),
-      "academic.section": ac.section
-    }));
+    const classQuery = buildClassQuery(teacher.assigned_classes);
 
     // Get all students from those classes
-    const students = await db.collection("student").find({
-      $or: classQuery
-    }).toArray();
+    const students = await db.collection("student").find(classQuery).toArray();
 
     res.json(students);
   } catch (error) {
@@ -64,7 +76,9 @@ router.get("/:teacherId/students/:classSection", async (req, res) => {
   try {
     const db = getDB(req);
 
-    const [classNum, section] = req.params.classSection.split(/[-_]/);
+    const parts = req.params.classSection.split('-');
+    const section = parts.length > 1 ? parts.pop() : null;
+    const classNum = parts.join('-');
 
     const classVal = isNaN(Number(classNum)) ? classNum : Number(classNum);
 
@@ -459,18 +473,10 @@ router.get("/:teacherId/leave-requests", async (req, res) => {
 
     if (!teacher) return res.status(404).json({ message: "Teacher not found" });
 
-    const classQuery = teacher.assigned_classes.map(ac => ({
-      class: ac.class,
-      section: ac.section
-    }));
+    const classQuery = buildClassQuery(teacher.assigned_classes);
 
     // Get students from those classes to get their admission numbers
-    const students = await db.collection("student").find({
-      $or: teacher.assigned_classes.map(ac => ({
-        "academic.current_class": isNaN(Number(ac.class)) ? ac.class : Number(ac.class),
-        "academic.section": ac.section
-      }))
-    }).toArray();
+    const students = await db.collection("student").find(classQuery).toArray();
 
     const studentAdmissionNos = students.map(s => s.admission_no);
 
@@ -505,17 +511,9 @@ router.get("/:teacherId/leave-history", async (req, res) => {
     const teacher = await db.collection("teachers").findOne({ teacher_id: req.params.teacherId });
     if (!teacher) return res.status(404).json({ message: "Teacher not found" });
 
-    const classQuery = teacher.assigned_classes.map(ac => ({
-      class: ac.class,
-      section: ac.section
-    }));
+    const classQuery = buildClassQuery(teacher.assigned_classes);
 
-    const students = await db.collection("student").find({
-      $or: teacher.assigned_classes.map(ac => ({
-        "academic.current_class": isNaN(Number(ac.class)) ? ac.class : Number(ac.class),
-        "academic.section": ac.section
-      }))
-    }).toArray();
+    const students = await db.collection("student").find(classQuery).toArray();
     const studentAdmissionNos = students.map(s => s.admission_no);
 
     const history = await db.collection("leave_requests")
@@ -551,26 +549,13 @@ router.get("/:teacherId/dashboard-stats", async (req, res) => {
       teacher_id: req.params.teacherId
     });
 
-    const classQuery = teacher.assigned_classes.map(ac => ({
-      class: ac.class,
-      section: ac.section
-    }));
+    const classQuery = buildClassQuery(teacher.assigned_classes);
 
     // Total students
-    const totalStudents = await db.collection("student").countDocuments({
-      $or: teacher.assigned_classes.map(ac => ({
-        "academic.current_class": isNaN(Number(ac.class)) ? ac.class : Number(ac.class),
-        "academic.section": ac.section
-      }))
-    });
+    const totalStudents = await db.collection("student").countDocuments(classQuery);
 
     // Pending leave requests
-    const students = await db.collection("student").find({
-      $or: teacher.assigned_classes.map(ac => ({
-        "academic.current_class": isNaN(Number(ac.class)) ? ac.class : Number(ac.class),
-        "academic.section": ac.section
-      }))
-    }).toArray();
+    const students = await db.collection("student").find(classQuery).toArray();
     const studentAdmissionNos = students.map(s => s.admission_no);
 
     const pendingLeaves = await db.collection("leave_requests").countDocuments({

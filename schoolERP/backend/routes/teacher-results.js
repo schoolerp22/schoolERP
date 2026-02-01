@@ -12,18 +12,18 @@ router.get("/:teacherId/marking-scheme/:class", async (req, res) => {
   try {
     const db = getDB(req);
     const academicYear = req.query.year || "2024-25";
-    
+
     const scheme = await db.collection("marking_schemes").findOne({
       class: req.params.class,
       academic_year: academicYear
     });
-    
+
     if (!scheme) {
-      return res.status(404).json({ 
-        message: "Marking scheme not found for this class" 
+      return res.status(404).json({
+        message: "Marking scheme not found for this class"
       });
     }
-    
+
     res.json(scheme);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -37,21 +37,21 @@ router.get("/:teacherId/marking-scheme/:class", async (req, res) => {
 router.post("/:teacherId/results/upload", async (req, res) => {
   try {
     const db = getDB(req);
-    const { 
-      exam_id, 
-      subject, 
-      class: className, 
-      section, 
+    const {
+      exam_id,
+      subject,
+      class: className,
+      section,
       academic_year,
       students_marks, // Array of student marks
-      auto_publish 
+      auto_publish
     } = req.body;
 
     // Get teacher details
-    const teacher = await db.collection("teachers").findOne({ 
-      teacher_id: req.params.teacherId 
+    const teacher = await db.collection("teachers").findOne({
+      teacher_id: req.params.teacherId
     });
-    
+
     if (!teacher) {
       return res.status(404).json({ message: "Teacher not found" });
     }
@@ -60,10 +60,10 @@ router.post("/:teacherId/results/upload", async (req, res) => {
     const hasAccess = teacher.assigned_classes.some(
       ac => ac.class === className && ac.section === section
     );
-    
+
     if (!hasAccess) {
-      return res.status(403).json({ 
-        message: "You don't have access to this class" 
+      return res.status(403).json({
+        message: "You don't have access to this class"
       });
     }
 
@@ -74,14 +74,14 @@ router.post("/:teacherId/results/upload", async (req, res) => {
     });
 
     if (!scheme) {
-      return res.status(404).json({ 
-        message: "Marking scheme not found" 
+      return res.status(404).json({
+        message: "Marking scheme not found"
       });
     }
 
     const teacherInfo = {
       teacher_id: req.params.teacherId,
-      teacher_name: teacher.personal_details?.name || 
+      teacher_name: teacher.personal_details?.name ||
         `${teacher.personal_details?.first_name} ${teacher.personal_details?.last_name}`.trim()
     };
 
@@ -113,14 +113,14 @@ router.post("/:teacherId/results/upload", async (req, res) => {
 
         for (const [componentId, markData] of Object.entries(studentMark.marks)) {
           const component = scheme.components.find(c => c.component_id === componentId);
-          
+
           if (component) {
             marks[componentId] = {
               obtained: markData.obtained || 0,
               max: component.max_marks,
               absent: markData.absent || false
             };
-            
+
             if (!markData.absent) {
               totalObtained += markData.obtained || 0;
             }
@@ -230,11 +230,13 @@ router.get("/:teacherId/results/:class/:section", async (req, res) => {
       results.map(async (result) => {
         const student = await db.collection("students").findOne(
           { admission_no: result.admission_no },
-          { projection: { 
-            admission_no: 1, 
-            personal_details: 1,
-            roll_no: 1 
-          }}
+          {
+            projection: {
+              admission_no: 1,
+              personal_details: 1,
+              roll_no: 1
+            }
+          }
         );
         return { ...result, student_info: student };
       })
@@ -353,7 +355,7 @@ router.post("/:teacherId/results/publish", async (req, res) => {
 router.delete("/:teacherId/results/:resultId", async (req, res) => {
   try {
     const db = getDB(req);
-    
+
     const result = await db.collection("results").findOneAndDelete({
       _id: new ObjectId(req.params.resultId)
     });
@@ -380,8 +382,8 @@ router.get("/:teacherId/results/stats/dashboard", async (req, res) => {
     const db = getDB(req);
     const academicYear = req.query.year || "2024-25";
 
-    const teacher = await db.collection("teachers").findOne({ 
-      teacher_id: req.params.teacherId 
+    const teacher = await db.collection("teachers").findOne({
+      teacher_id: req.params.teacherId
     });
 
     if (!teacher) {
@@ -399,16 +401,16 @@ router.get("/:teacherId/results/stats/dashboard", async (req, res) => {
       total_results_uploaded: results.length,
       published_results: results.filter(r => r.is_published).length,
       unpublished_results: results.filter(r => !r.is_published).length,
-      
+
       // Subject-wise breakdown
       subjects: {},
-      
+
       // Exam-wise breakdown
       exams: {},
-      
+
       // Grade distribution
       grade_distribution: {},
-      
+
       // Class performance
       class_performance: []
     };
@@ -438,22 +440,22 @@ router.get("/:teacherId/results/stats/dashboard", async (req, res) => {
       stats.exams[result.exam_id].total_percentage += result.percentage;
 
       // Grade distribution
-      stats.grade_distribution[result.grade] = 
+      stats.grade_distribution[result.grade] =
         (stats.grade_distribution[result.grade] || 0) + 1;
     });
 
     // Calculate averages
     Object.keys(stats.subjects).forEach(subject => {
-      stats.subjects[subject].avg_percentage = 
-        parseFloat((stats.subjects[subject].total_percentage / 
-        stats.subjects[subject].count).toFixed(2));
+      stats.subjects[subject].avg_percentage =
+        parseFloat((stats.subjects[subject].total_percentage /
+          stats.subjects[subject].count).toFixed(2));
       delete stats.subjects[subject].total_percentage;
     });
 
     Object.keys(stats.exams).forEach(exam => {
-      stats.exams[exam].avg_percentage = 
-        parseFloat((stats.exams[exam].total_percentage / 
-        stats.exams[exam].count).toFixed(2));
+      stats.exams[exam].avg_percentage =
+        parseFloat((stats.exams[exam].total_percentage /
+          stats.exams[exam].count).toFixed(2));
       delete stats.exams[exam].total_percentage;
     });
 
@@ -494,8 +496,8 @@ router.get("/:teacherId/results/stats/class-comparison", async (req, res) => {
     const { exam_id, subject } = req.query;
     const academicYear = req.query.year || "2024-25";
 
-    const teacher = await db.collection("teachers").findOne({ 
-      teacher_id: req.params.teacherId 
+    const teacher = await db.collection("teachers").findOne({
+      teacher_id: req.params.teacherId
     });
 
     const query = {
@@ -511,9 +513,11 @@ router.get("/:teacherId/results/stats/class-comparison", async (req, res) => {
     for (const assignedClass of teacher.assigned_classes) {
       const classQuery = {
         ...query,
-        class: assignedClass.class,
-        section: assignedClass.section
+        class: assignedClass.class
       };
+      if (assignedClass.section && assignedClass.section !== "undefined") {
+        classQuery.section = assignedClass.section;
+      }
 
       const results = await db.collection("results").find(classQuery).toArray();
 
@@ -579,7 +583,7 @@ async function updateStudentAnalytics(db, admissionNos, academicYear) {
             count: 0
           };
         }
-        
+
         subjectMap[result.subject].exams.push({
           exam_id: result.exam_id,
           percentage: result.percentage,
@@ -587,7 +591,7 @@ async function updateStudentAnalytics(db, admissionNos, academicYear) {
           total_obtained: result.total_obtained,
           total_max: result.total_max
         });
-        
+
         subjectMap[result.subject].total_percentage += result.percentage;
         subjectMap[result.subject].count++;
       });
@@ -617,13 +621,13 @@ async function updateStudentAnalytics(db, admissionNos, academicYear) {
             count: 0
           };
         }
-        
+
         examMap[result.exam_id].subjects.push({
           subject: result.subject,
           percentage: result.percentage,
           grade: result.grade
         });
-        
+
         examMap[result.exam_id].total_percentage += result.percentage;
         examMap[result.exam_id].total_obtained += result.total_obtained;
         examMap[result.exam_id].total_max += result.total_max;
@@ -653,7 +657,7 @@ async function updateStudentAnalytics(db, admissionNos, academicYear) {
 
       // Update or insert analytics
       await db.collection("student_analytics").updateOne(
-        { 
+        {
           admission_no: admissionNo,
           academic_year: academicYear
         },
@@ -680,18 +684,18 @@ async function updateStudentAnalytics(db, admissionNos, academicYear) {
 
 function calculateTrend(percentages) {
   if (percentages.length < 2) return "stable";
-  
+
   const recent = percentages.slice(-3);
   if (recent.length < 2) return "stable";
-  
+
   let increasing = 0;
   let decreasing = 0;
-  
+
   for (let i = 1; i < recent.length; i++) {
-    if (recent[i] > recent[i-1]) increasing++;
-    else if (recent[i] < recent[i-1]) decreasing++;
+    if (recent[i] > recent[i - 1]) increasing++;
+    else if (recent[i] < recent[i - 1]) decreasing++;
   }
-  
+
   if (increasing > decreasing) return "improving";
   if (decreasing > increasing) return "declining";
   return "stable";

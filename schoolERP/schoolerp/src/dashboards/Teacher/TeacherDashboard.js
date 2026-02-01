@@ -35,6 +35,8 @@ const TeacherDashboard = () => {
     selectedClassStudents,
     dashboardStats,
     leaveRequests,
+    allLeaveRequests,
+    loadings,
     loading,
     error,
     success
@@ -115,7 +117,7 @@ const TeacherDashboard = () => {
           <StudentsView
             students={selectedClassStudents}
             selectedClass={selectedClass}
-            loading={loading}
+            loadings={loadings}
           />
         );
       case 'attendance':
@@ -124,7 +126,7 @@ const TeacherDashboard = () => {
             students={selectedClassStudents}
             selectedClass={selectedClass}
             teacherId={teacherId}
-            loading={loading}
+            loadings={loadings}
           />
         );
       case 'homework':

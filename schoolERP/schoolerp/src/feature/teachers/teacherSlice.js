@@ -364,7 +364,18 @@ const initialState = {
   resultsStats: null,
   classComparison: [],
 
-  loading: false,
+  loadings: {
+    profile: false,
+    students: false,
+    stats: false,
+    markingScheme: false,
+    results: false,
+    leaves: false,
+    attendance: false,
+    announcements: false,
+    homework: false
+  },
+  loading: false, // Global/Form loading
   error: null,
   success: false,
 };
@@ -406,33 +417,41 @@ const teacherSlice = createSlice({
       // ... existing reducers ...
       // Get Profile
       .addCase(getTeacherProfile.pending, (state) => {
-        state.loading = true;
+        state.loadings.profile = true;
       })
       .addCase(getTeacherProfile.fulfilled, (state, action) => {
-        state.loading = false;
+        state.loadings.profile = false;
         state.profile = action.payload;
       })
       .addCase(getTeacherProfile.rejected, (state, action) => {
-        state.loading = false;
+        state.loadings.profile = false;
         state.error = action.payload;
       })
 
       // Get Students
       .addCase(getAssignedStudents.pending, (state) => {
-        state.loading = true;
+        state.loadings.students = true;
       })
       .addCase(getAssignedStudents.fulfilled, (state, action) => {
-        state.loading = false;
+        state.loadings.students = false;
         state.students = action.payload;
       })
       .addCase(getAssignedStudents.rejected, (state, action) => {
-        state.loading = false;
+        state.loadings.students = false;
         state.error = action.payload;
       })
 
       // Get Students by Class
+      .addCase(getStudentsByClass.pending, (state) => {
+        state.loadings.students = true;
+      })
       .addCase(getStudentsByClass.fulfilled, (state, action) => {
+        state.loadings.students = false;
         state.selectedClassStudents = action.payload;
+      })
+      .addCase(getStudentsByClass.rejected, (state, action) => {
+        state.loadings.students = false;
+        state.error = action.payload;
       })
 
       // Mark Attendance
@@ -455,14 +474,14 @@ const teacherSlice = createSlice({
 
       // Get Attendance Summary (NEW)
       .addCase(getAttendanceSummary.pending, (state) => {
-        state.loading = true;
+        state.loadings.attendance = true;
       })
       .addCase(getAttendanceSummary.fulfilled, (state, action) => {
-        state.loading = false;
+        state.loadings.attendance = false;
         state.attendanceSummary = action.payload;
       })
       .addCase(getAttendanceSummary.rejected, (state, action) => {
-        state.loading = false;
+        state.loadings.attendance = false;
         state.error = action.payload;
       })
 
@@ -514,14 +533,14 @@ const teacherSlice = createSlice({
 
       // Get All Leave Requests (History)
       .addCase(getAllLeaveRequests.pending, (state) => {
-        state.loading = true;
+        state.loadings.leaves = true;
       })
       .addCase(getAllLeaveRequests.fulfilled, (state, action) => {
-        state.loading = false;
+        state.loadings.leaves = false;
         state.allLeaveRequests = action.payload;
       })
       .addCase(getAllLeaveRequests.rejected, (state, action) => {
-        state.loading = false;
+        state.loadings.leaves = false;
         state.error = action.payload;
       })
 
@@ -546,14 +565,14 @@ const teacherSlice = createSlice({
 
       // Get Marking Scheme
       .addCase(getMarkingScheme.pending, (state) => {
-        state.loading = true;
+        state.loadings.markingScheme = true;
       })
       .addCase(getMarkingScheme.fulfilled, (state, action) => {
-        state.loading = false;
+        state.loadings.markingScheme = false;
         state.markingScheme = action.payload;
       })
       .addCase(getMarkingScheme.rejected, (state, action) => {
-        state.loading = false;
+        state.loadings.markingScheme = false;
         state.error = action.payload;
       })
 
@@ -572,14 +591,14 @@ const teacherSlice = createSlice({
 
       // Get Class Results
       .addCase(getClassResults.pending, (state) => {
-        state.loading = true;
+        state.loadings.results = true;
       })
       .addCase(getClassResults.fulfilled, (state, action) => {
-        state.loading = false;
+        state.loadings.results = false;
         state.classResults = action.payload;
       })
       .addCase(getClassResults.rejected, (state, action) => {
-        state.loading = false;
+        state.loadings.results = false;
         state.error = action.payload;
       })
 

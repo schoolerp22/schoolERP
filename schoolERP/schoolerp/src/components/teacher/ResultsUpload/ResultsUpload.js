@@ -10,26 +10,29 @@ import {
   clearSuccess
 } from "../../../feature/teachers/teacherSlice";
 
-export default function ResultsUpload( ) {
+export default function ResultsUpload({ teacherId, profile, selectedClass: initialSelectedClass }) {
   const dispatch = useDispatch();
+
+  // Split class-section from prop
+  const [initialClass, initialSection] = (initialSelectedClass || "10-A").split("-");
 
   // ===== REDUX STATE =====
   const {
-    profile,
     selectedClassStudents: students = [],
     markingScheme,
-    loading,
+    loadings,
+    loading: formLoading,
     error,
     success
   } = useSelector((state) => state.teacher);
 
-  let teacherId = 'T-101';
+  const loading = formLoading || loadings?.markingScheme || loadings?.students;
 
   // ===== LOCAL STATE =====
   const [selectedExam, setSelectedExam] = useState("");
   const [selectedSubject, setSelectedSubject] = useState("");
-  const [selectedClass, setSelectedClass] = useState("10");
-  const [selectedSection, setSelectedSection] = useState("A");
+  const [selectedClass, setSelectedClass] = useState(initialClass || "10");
+  const [selectedSection, setSelectedSection] = useState(initialSection || "A");
   const [marksData, setMarksData] = useState({});
   const [showSuccessMsg, setShowSuccessMsg] = useState(false);
   const [showErrorMsg, setShowErrorMsg] = useState(false);
@@ -58,8 +61,8 @@ export default function ResultsUpload( ) {
   ];
 
   // Use marking scheme components or default
-  const components = markingScheme?.components && markingScheme.components.length > 0 
-    ? markingScheme.components 
+  const components = markingScheme?.components && markingScheme.components.length > 0
+    ? markingScheme.components
     : defaultComponents;
 
   // ===== FETCH DATA =====
@@ -82,33 +85,33 @@ export default function ResultsUpload( ) {
   }, [teacherId, selectedClass, selectedSection, dispatch]);
 
   // ===== INIT MARKS =====
-useEffect(() => {
-  if (!students.length || !components.length) return;
+  useEffect(() => {
+    if (!students.length || !components.length) return;
 
-  setMarksData((prev) => {
-    let changed = false;
-    const updated = { ...prev };
+    setMarksData((prev) => {
+      let changed = false;
+      const updated = { ...prev };
 
-    students.forEach((student) => {
-      if (!updated[student.admission_no]) {
-        updated[student.admission_no] = {};
-        changed = true;
-      }
-
-      components.forEach((comp) => {
-        if (!updated[student.admission_no][comp.component_id]) {
-          updated[student.admission_no][comp.component_id] = {
-            obtained: "",
-            absent: false
-          };
+      students.forEach((student) => {
+        if (!updated[student.admission_no]) {
+          updated[student.admission_no] = {};
           changed = true;
         }
-      });
-    });
 
-    return changed ? updated : prev;
-  });
-}, [students, components]);
+        components.forEach((comp) => {
+          if (!updated[student.admission_no][comp.component_id]) {
+            updated[student.admission_no][comp.component_id] = {
+              obtained: "",
+              absent: false
+            };
+            changed = true;
+          }
+        });
+      });
+
+      return changed ? updated : prev;
+    });
+  }, [students, components]);
 
 
   // ===== SUCCESS/ERROR HANDLING =====
@@ -135,7 +138,7 @@ useEffect(() => {
   // ===== HANDLERS =====
   const handleMarkChange = (admissionNo, componentId, value, maxMarks) => {
     const numValue = Number(value) || 0;
-    
+
     // Validate against max marks
     if (numValue > maxMarks) {
       alert(`Marks cannot exceed ${maxMarks}`);
@@ -251,7 +254,7 @@ useEffect(() => {
       try {
         const text = e.target.result;
         const rows = text.split('\n').map(row => row.split(','));
-        
+
         const newMarksData = { ...marksData };
 
         // Process each row (skip header)
@@ -260,7 +263,7 @@ useEffect(() => {
           if (row.length < 3) continue;
 
           const admissionNo = row[0].trim();
-          
+
           // Find student
           const student = students.find(s => s.admission_no === admissionNo);
           if (!student) continue;
@@ -349,8 +352,8 @@ useEffect(() => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Class</label>
-              <select 
-                value={selectedClass} 
+              <select
+                value={selectedClass}
                 onChange={(e) => setSelectedClass(e.target.value)}
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
               >
@@ -362,8 +365,8 @@ useEffect(() => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Section</label>
-              <select 
-                value={selectedSection} 
+              <select
+                value={selectedSection}
                 onChange={(e) => setSelectedSection(e.target.value)}
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
               >
@@ -375,8 +378,8 @@ useEffect(() => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Exam</label>
-              <select 
-                value={selectedExam} 
+              <select
+                value={selectedExam}
                 onChange={(e) => setSelectedExam(e.target.value)}
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
               >
@@ -389,8 +392,8 @@ useEffect(() => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Subject</label>
-              <select 
-                value={selectedSubject} 
+              <select
+                value={selectedSubject}
                 onChange={(e) => setSelectedSubject(e.target.value)}
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
               >
@@ -486,7 +489,7 @@ useEffect(() => {
 
                         {components.map((c) => {
                           const isAbsent = marksData[s.admission_no]?.[c.component_id]?.absent;
-                          
+
                           return (
                             <td key={c.component_id} className="px-4 py-3">
                               <div className="flex flex-col gap-1">
@@ -504,9 +507,8 @@ useEffect(() => {
                                       c.max_marks
                                     )
                                   }
-                                  className={`w-full px-3 py-2 text-center border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all ${
-                                    isAbsent ? 'bg-gray-100 text-gray-400' : 'border-gray-300'
-                                  }`}
+                                  className={`w-full px-3 py-2 text-center border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all ${isAbsent ? 'bg-gray-100 text-gray-400' : 'border-gray-300'
+                                    }`}
                                 />
                                 <label className="flex items-center justify-center gap-1 text-xs text-gray-600 cursor-pointer">
                                   <input

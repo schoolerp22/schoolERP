@@ -9,11 +9,15 @@ import {
 
 const COLORS = ['#ef4444', '#eab308', '#22c55e']; // Red (<75), Yellow (75-90), Green (>90)
 
-const AttendanceView = ({ students, selectedClass, teacherId, loading }) => {
+const AttendanceView = ({ students, selectedClass, teacherId, loadings }) => {
+  const [activeTab, setActiveTab] = useState('mark'); // 'mark', 'summary', 'history'
+
+  const loading = activeTab === 'mark' ? (loadings?.students || loadings?.leaves) :
+    activeTab === 'summary' ? loadings?.attendance :
+      loadings?.attendance;
   const dispatch = useDispatch();
   const { attendanceSummary, attendance, approvedLeaves } = useSelector((state) => state.teacher);
 
-  const [activeTab, setActiveTab] = useState('mark'); // 'mark', 'summary', 'history'
   const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
   const [historyDate, setHistoryDate] = useState(new Date().toISOString().split('T')[0]); // Separate date for history
   const [attendanceData, setAttendanceData] = useState({});

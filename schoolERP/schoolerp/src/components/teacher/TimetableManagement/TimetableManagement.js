@@ -2,13 +2,13 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Save, Plus, Trash2, Clock, Calendar } from "lucide-react";
-import { saveTimetable, getTimetable, clearSuccess, clearError } from "../../../feature/teachers/teacherSlice";
+import { saveTimetable, getTimetable } from "../../../feature/teachers/teacherSlice";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 const TimetableManagement = ({ teacherId, selectedClass }) => {
     const dispatch = useDispatch();
-    const { timetable, loading, success, error } = useSelector((state) => state.teacher);
+    const { timetable, loading } = useSelector((state) => state.teacher);
 
     const [activeDay, setActiveDay] = useState("Monday");
     const [schedule, setSchedule] = useState({});

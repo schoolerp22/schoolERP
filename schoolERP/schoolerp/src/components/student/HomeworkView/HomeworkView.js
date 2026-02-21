@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { submitHomework, getStudentHomework } from "../../../feature/students/studentSlice";
-import { FileText, Download, Upload, CheckCircle, BookOpen } from 'lucide-react';
+import {  Download, Upload, CheckCircle, BookOpen } from 'lucide-react';
 import "./HomeworkView.css";
 
 const HomeworkView = ({ homework, studentId }) => {

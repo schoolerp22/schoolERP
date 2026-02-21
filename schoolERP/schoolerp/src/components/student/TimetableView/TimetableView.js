@@ -1,5 +1,5 @@
 import React from "react";
-import { Clock, User, Calendar, Coffee } from "lucide-react";
+import {  User, Calendar, Coffee } from "lucide-react";
 import "./TimetableView.css";
 
 const TimetableView = ({ timetable }) => {

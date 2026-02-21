@@ -177,10 +177,12 @@ export const deleteAnnouncement = createAsyncThunk(
   "teacher/deleteAnnouncement",
   async ({ teacherId, announcementId }, { rejectWithValue }) => {
     try {
-      const response = await axios.delete(`${API_URL}/${teacherId}/announcements/${announcementId}`);
+      await axios.delete(`${API_URL}/${teacherId}/announcements/${announcementId}`);
       return announcementId; // Return ID to filter out from state
     } catch (error) {
-      return rejectWithValue(error.response.data);
+       return rejectWithValue(
+        error.response?.data || error.message || "Something went wrong"
+      );
     }
   }
 );

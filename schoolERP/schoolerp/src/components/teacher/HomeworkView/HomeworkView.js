@@ -39,6 +39,7 @@ const HomeworkView = ({ selectedClass, teacherId, profile }) => {
 
   const handleSubmissionsClick = (hwId) => {
     setViewingSubmissionsId(hwId);
+    console.log('viewingSubmissionsId',viewingSubmissionsId)
     dispatch(getHomeworkSubmissions({ teacherId, homeworkId: hwId }));
     setShowSubmissionsModal(true);
   };

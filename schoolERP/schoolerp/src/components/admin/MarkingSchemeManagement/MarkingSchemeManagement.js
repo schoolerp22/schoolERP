@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Plus, X, Edit2, Archive, Trash2, Eye, CheckCircle, Copy } from 'lucide-react';
+import { BookOpen, Plus, X,  Archive, Trash2, CheckCircle } from 'lucide-react';
 import axios from 'axios';
 
 const MarkingSchemeManagement = () => {

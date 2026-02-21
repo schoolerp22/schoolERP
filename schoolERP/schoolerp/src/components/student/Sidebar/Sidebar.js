@@ -30,68 +30,97 @@ const Sidebar = ({ profile, currentView, onViewChange, sidebarOpen, onToggleSide
   const [showLogoutModal, setShowLogoutModal] = React.useState(false);
 
   return (
-    <aside className={`${sidebarOpen ? "w-64" : "w-20"} bg-indigo-900 text-white p-4 space-y-2 flex flex-col transition-all duration-300`}>
-      <div className="flex items-center justify-between mb-4">
-        {sidebarOpen && <h2 className="text-xl font-bold">Student Portal</h2>}
-        <button
+    <>
+      {/* Mobile Backdrop */}
+      {sidebarOpen && (
+        <div
+          className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity"
           onClick={onToggleSidebar}
-          className="p-2 hover:bg-indigo-800 rounded-lg"
-        >
-          {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
-        </button>
-      </div>
-
-      <nav className="flex-1 overflow-y-auto space-y-1">
-        {menuItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <button
-              key={item.id}
-              onClick={() => onViewChange(item.id)}
-              className={`flex items-center gap-3 w-full p-3 rounded-lg hover:bg-indigo-800 transition ${currentView === item.id ? "bg-indigo-800 text-white" : "text-indigo-200"
-                }`}
-            >
-              <Icon size={20} className="shrink-0" />
-              {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
-              {sidebarOpen && item.badge && (
-                <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded font-bold ${item.badgeColor}`}>
-                  {item.badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </nav>
-
-      <div className="mt-auto pt-4 border-t border-indigo-800">
-        <button
-          onClick={() => setShowLogoutModal(true)}
-          className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-red-700 transition text-red-100 hover:text-white mb-4"
-        >
-          <LogOut size={20} className="shrink-0" />
-          {sidebarOpen && <span className="text-sm font-medium">Logout</span>}
-        </button>
-
-        <LogoutConfirmModal
-          isOpen={showLogoutModal}
-          onClose={() => setShowLogoutModal(false)}
-          onConfirm={() => {
-            setShowLogoutModal(false);
-            dispatch(logout());
-          }}
         />
+      )}
 
-        {sidebarOpen && (
-          <div className="p-3 bg-indigo-700 rounded-xl">
-            <p className="font-semibold text-sm truncate">
-              {profile.personal_details?.first_name || "Student"}{" "}
-              {profile.personal_details?.last_name || ""}
-            </p>
-            <p className="text-xs text-indigo-300 truncate">{profile.admission_no}</p>
-          </div>
-        )}
-      </div>
-    </aside>
+      {/* Sidebar Content */}
+      <aside
+        className={`fixed md:relative top-0 left-0 h-full z-50 md:z-auto bg-indigo-900 text-white transition-all duration-300 flex flex-col shadow-xl md:shadow-none
+          ${sidebarOpen ? "w-64 translate-x-0" : "-translate-x-full md:w-20 md:translate-x-0"}`}
+      >
+        <div className="flex items-center justify-between p-4 mb-2">
+          {sidebarOpen && <h2 className="text-xl font-bold truncate">Student Portal</h2>}
+
+          {/* Desktop Toggle Button */}
+          <button
+            onClick={onToggleSidebar}
+            className="p-2 hover:bg-indigo-800 rounded-lg hidden md:block"
+          >
+            {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+
+          {/* Mobile Close Button */}
+          <button
+            onClick={onToggleSidebar}
+            className="p-2 hover:bg-indigo-800 rounded-lg md:hidden"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <nav className="flex-1 overflow-y-auto space-y-1 px-4">
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                onClick={() => {
+                  onViewChange(item.id);
+                  if (window.innerWidth < 768) {
+                    onToggleSidebar();
+                  }
+                }}
+                className={`flex items-center gap-3 w-full p-3 rounded-lg hover:bg-indigo-800 transition ${currentView === item.id ? "bg-indigo-800 text-white" : "text-indigo-200"
+                  }`}
+              >
+                <Icon size={20} className="shrink-0" />
+                {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
+                {sidebarOpen && item.badge && (
+                  <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded font-bold ${item.badgeColor}`}>
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="mt-auto p-4 border-t border-indigo-800">
+          <button
+            onClick={() => setShowLogoutModal(true)}
+            className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-red-700 transition text-red-100 hover:text-white mb-4"
+          >
+            <LogOut size={20} className="shrink-0" />
+            {sidebarOpen && <span className="text-sm font-medium">Logout</span>}
+          </button>
+
+          <LogoutConfirmModal
+            isOpen={showLogoutModal}
+            onClose={() => setShowLogoutModal(false)}
+            onConfirm={() => {
+              setShowLogoutModal(false);
+              dispatch(logout());
+            }}
+          />
+
+          {sidebarOpen && (
+            <div className="p-3 bg-indigo-700 rounded-xl">
+              <p className="font-semibold text-sm truncate">
+                {profile.personal_details?.first_name || "Student"}{" "}
+                {profile.personal_details?.last_name || ""}
+              </p>
+              <p className="text-xs text-indigo-300 truncate">{profile.admission_no}</p>
+            </div>
+          )}
+        </div>
+      </aside>
+    </>
   );
 };
 

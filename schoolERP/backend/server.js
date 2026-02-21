@@ -12,10 +12,16 @@ dotenv.config();
 
 const app = express();
 
+// Forced restart trigger: Fixed student results route mounting
+
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use("/api/auth", authRoutes);
+// Serve uploaded files
+import path from 'path';
+const __dirname = path.resolve();
+app.use('/uploads', express.static(path.join(__dirname, '/uploads')));
 
 // Connect to MongoDB and attach db to app
 const startServer = async () => {
@@ -32,7 +38,7 @@ const startServer = async () => {
     app.use("/api/teacher/results", teacherResultsRoutes);
 
     app.use("/api/student", studentRoutes);
-    app.use("/api/student/results", studentResultsRoutes);
+    app.use("/api/student", studentResultsRoutes);
 
     app.use("/api/admin", adminRoutes);
 

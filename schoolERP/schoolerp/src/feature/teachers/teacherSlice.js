@@ -45,12 +45,58 @@ export const getStudentsByClass = createAsyncThunk(
   }
 );
 
+// Get students for results upload (separate from attendance)
+export const getStudentsForResults = createAsyncThunk(
+  "teacher/getStudentsForResults",
+  async ({ teacherId, classSection }, { rejectWithValue }) => {
+    try {
+      const response = await axios.get(`${API_URL}/${teacherId}/students/${classSection}`);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
 // Mark attendance
 export const markAttendance = createAsyncThunk(
   "teacher/markAttendance",
   async ({ teacherId, attendanceData }, { rejectWithValue }) => {
     try {
       const response = await axios.post(`${API_URL}/${teacherId}/attendance`, attendanceData);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+// Edit homework
+export const editHomework = createAsyncThunk(
+  "teacher/editHomework",
+  async ({ teacherId, homeworkId, homeworkData }, { rejectWithValue }) => {
+    try {
+      const config = { headers: { "Content-Type": "multipart/form-data" } };
+      const response = await axios.put(
+        `${API_URL}/${teacherId}/homework/${homeworkId}`,
+        homeworkData,
+        config
+      );
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+// Get homework submissions
+export const getHomeworkSubmissions = createAsyncThunk(
+  "teacher/getHomeworkSubmissions",
+  async ({ teacherId, homeworkId }, { rejectWithValue }) => {
+    try {
+      const response = await axios.get(
+        `${API_URL}/${teacherId}/homework/${homeworkId}/submissions`
+      );
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response.data);
@@ -71,12 +117,13 @@ export const getAttendance = createAsyncThunk(
   }
 );
 
-// Assign homework
+// Assign homework (Supports File Upload)
 export const assignHomework = createAsyncThunk(
   "teacher/assignHomework",
   async ({ teacherId, homeworkData }, { rejectWithValue }) => {
     try {
-      const response = await axios.post(`${API_URL}/${teacherId}/homework`, homeworkData);
+      const config = { headers: { "Content-Type": "multipart/form-data" } };
+      const response = await axios.post(`${API_URL}/${teacherId}/homework`, homeworkData, config);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response.data);
@@ -97,13 +144,41 @@ export const getHomework = createAsyncThunk(
   }
 );
 
-// Create announcement
+// Create announcement (Supports File Upload)
 export const createAnnouncement = createAsyncThunk(
   "teacher/createAnnouncement",
   async ({ teacherId, announcementData }, { rejectWithValue }) => {
     try {
-      const response = await axios.post(`${API_URL}/${teacherId}/announcements`, announcementData);
+      const config = { headers: { "Content-Type": "multipart/form-data" } };
+      const response = await axios.post(`${API_URL}/${teacherId}/announcements`, announcementData, config);
       return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+// Update announcement
+export const updateAnnouncement = createAsyncThunk(
+  "teacher/updateAnnouncement",
+  async ({ teacherId, announcementId, announcementData }, { rejectWithValue }) => {
+    try {
+      const config = { headers: { "Content-Type": "multipart/form-data" } };
+      const response = await axios.put(`${API_URL}/${teacherId}/announcements/${announcementId}`, announcementData, config);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+// Delete announcement
+export const deleteAnnouncement = createAsyncThunk(
+  "teacher/deleteAnnouncement",
+  async ({ teacherId, announcementId }, { rejectWithValue }) => {
+    try {
+      const response = await axios.delete(`${API_URL}/${teacherId}/announcements/${announcementId}`);
+      return announcementId; // Return ID to filter out from state
     } catch (error) {
       return rejectWithValue(error.response.data);
     }
@@ -180,10 +255,10 @@ export const getDashboardStats = createAsyncThunk(
 // Get marking scheme
 export const getMarkingScheme = createAsyncThunk(
   "teacher/getMarkingScheme",
-  async ({ teacherId, classNum, year = "2024-25" }, { rejectWithValue }) => {
+  async ({ teacherId, classNum, section = "A", year = "2024-25" }, { rejectWithValue }) => {
     try {
       const response = await axios.get(
-        `${API_URL}/${teacherId}/marking-scheme/${classNum}?year=${year}`
+        `${API_URL}/${teacherId}/marking-scheme/${classNum}?year=${year}&section=${section}`
       );
       return response.data;
     } catch (error) {
@@ -353,6 +428,7 @@ const initialState = {
   attendance: [],
   attendanceSummary: [], // Added for overview
   homework: [],
+  submissions: [], // For viewing homework submissions
   announcements: [],
   leaveRequests: [], // Pending requests
   allLeaveRequests: [], // Approved, Rejected, Pending
@@ -360,9 +436,11 @@ const initialState = {
   dashboardStats: null,
   // results state
   markingScheme: null,
+  resultsStudents: [], // Separate state for results upload
   classResults: [],
   resultsStats: null,
   classComparison: [],
+  timetable: null,
 
   loadings: {
     profile: false,
@@ -379,6 +457,46 @@ const initialState = {
   error: null,
   success: false,
 };
+
+
+// Save/Update Timetable
+export const saveTimetable = createAsyncThunk(
+  "teacher/saveTimetable",
+  async ({ teacherId, classSection, timetable }, { rejectWithValue }) => {
+    try {
+      const response = await axios.post(
+        `${API_URL}/${teacherId}/timetable`,
+        { classSection, timetable }
+      );
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response && error.response.data.message
+          ? error.response.data.message
+          : error.message
+      );
+    }
+  }
+);
+
+// Get Timetable
+export const getTimetable = createAsyncThunk(
+  "teacher/getTimetable",
+  async ({ teacherId, classSection }, { rejectWithValue }) => {
+    try {
+      const response = await axios.get(
+        `${API_URL}/${teacherId}/timetable/${classSection}`
+      );
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response && error.response.data.message
+          ? error.response.data.message
+          : error.message
+      );
+    }
+  }
+);
 
 const teacherSlice = createSlice({
   name: "teacher",
@@ -454,6 +572,19 @@ const teacherSlice = createSlice({
         state.error = action.payload;
       })
 
+      // Get Students for Results Upload (separate state)
+      .addCase(getStudentsForResults.pending, (state) => {
+        state.loadings.students = true;
+      })
+      .addCase(getStudentsForResults.fulfilled, (state, action) => {
+        state.loadings.students = false;
+        state.resultsStudents = action.payload;
+      })
+      .addCase(getStudentsForResults.rejected, (state, action) => {
+        state.loadings.students = false;
+        state.error = action.payload;
+      })
+
       // Mark Attendance
       .addCase(markAttendance.pending, (state) => {
         state.loading = true;
@@ -504,6 +635,32 @@ const teacherSlice = createSlice({
         state.error = action.payload;
       })
 
+      // Edit Homework
+      .addCase(editHomework.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(editHomework.fulfilled, (state, action) => {
+        state.loading = false;
+        state.success = true;
+      })
+      .addCase(editHomework.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // Get Homework Submissions
+      .addCase(getHomeworkSubmissions.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(getHomeworkSubmissions.fulfilled, (state, action) => {
+        state.loading = false;
+        state.submissions = action.payload;
+      })
+      .addCase(getHomeworkSubmissions.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
       // Get Homework
       .addCase(getHomework.fulfilled, (state, action) => {
         state.homework = action.payload;
@@ -518,6 +675,33 @@ const teacherSlice = createSlice({
         state.success = true;
       })
       .addCase(createAnnouncement.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // Update Announcement
+      .addCase(updateAnnouncement.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(updateAnnouncement.fulfilled, (state, action) => {
+        state.loading = false;
+        state.success = true;
+      })
+      .addCase(updateAnnouncement.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // Delete Announcement
+      .addCase(deleteAnnouncement.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(deleteAnnouncement.fulfilled, (state, action) => {
+        state.loading = false;
+        state.success = true;
+        state.announcements = state.announcements.filter(a => a._id !== action.payload);
+      })
+      .addCase(deleteAnnouncement.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
@@ -649,6 +833,32 @@ const teacherSlice = createSlice({
       // Get Class Comparison
       .addCase(getClassComparison.fulfilled, (state, action) => {
         state.classComparison = action.payload;
+      })
+      // Save Timetable
+      .addCase(saveTimetable.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(saveTimetable.fulfilled, (state, action) => {
+        state.loading = false;
+        state.success = true;
+        // Optionally update local state if needed
+      })
+      .addCase(saveTimetable.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // Get Timetable
+      .addCase(getTimetable.pending, (state) => {
+        state.loadings.timetable = true;
+      })
+      .addCase(getTimetable.fulfilled, (state, action) => {
+        state.loadings.timetable = false;
+        state.timetable = action.payload;
+      })
+      .addCase(getTimetable.rejected, (state, action) => {
+        state.loadings.timetable = false;
+        state.error = action.payload;
       });
   },
 });

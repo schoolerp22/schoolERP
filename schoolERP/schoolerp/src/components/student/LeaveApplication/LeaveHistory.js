@@ -114,7 +114,55 @@ const LeaveHistory = () => {
                     <span className="text-xs text-gray-500">{leaves.length} records found</span>
                 </div>
 
-                <div className="overflow-x-auto">
+                {/* Mobile Cards View */}
+                <div className="md:hidden divide-y divide-gray-100">
+                    {leaves.length === 0 ? (
+                        <div className="p-6 text-center text-gray-400 italic">No leave history found.</div>
+                    ) : (
+                        leaves.map((leave) => (
+                            <div key={leave._id} className="p-4 space-y-3 bg-white">
+                                <div className="flex justify-between items-start">
+                                    <div className="flex flex-col">
+                                        <span className="font-semibold text-gray-800 text-sm">
+                                            {new Date(leave.from_date).toLocaleDateString()}
+                                            {leave.type === "Multi Day" && ` - ${new Date(leave.to_date).toLocaleDateString()}`}
+                                        </span>
+                                        <span className="text-xs font-bold text-indigo-500 uppercase mt-0.5">{leave.type}</span>
+                                    </div>
+                                    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold border ${getStatusColor(leave.status)}`}>
+                                        {getStatusIcon(leave.status)}
+                                        {leave.status}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <p className="text-sm text-gray-600 line-clamp-2 italic">"{leave.reason}"</p>
+                                </div>
+
+                                <div className="flex justify-between items-center pt-2 border-t border-gray-50">
+                                    <div className="flex items-center gap-1.5 text-gray-500">
+                                        <User size={12} />
+                                        <span className="text-xs font-medium">
+                                            {leave.status === "Pending"
+                                                ? (leave.target_teacher_name || leave.target_teacher_id || "N/A")
+                                                : (leave.approver_name || leave.approved_by_name || leave.target_teacher_name || "N/A")}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {leave.remarks && (
+                                    <div className="flex items-start gap-2 p-2.5 mt-2 bg-indigo-50 rounded-lg border border-indigo-100">
+                                        <MessageCircle size={14} className="text-indigo-500 shrink-0 mt-0.5" />
+                                        <p className="text-xs text-indigo-800">{leave.remarks}</p>
+                                    </div>
+                                )}
+                            </div>
+                        ))
+                    )}
+                </div>
+
+                {/* Desktop Table View */}
+                <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-left text-sm">
                         <thead className="bg-gray-50 text-gray-600 uppercase text-[10px] font-bold tracking-wider">
                             <tr>

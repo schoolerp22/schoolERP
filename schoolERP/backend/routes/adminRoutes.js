@@ -786,4 +786,520 @@ router.get("/:adminId/analytics/subject-wise", async (req, res) => {
     }
 });
 
+// ==================== RESULTS MANAGEMENT ====================
+
+/**
+ * @route   POST /api/admin/:adminId/results/fix-missing-fields
+ * @desc    Fix existing results that are missing calculated fields
+ */
+router.post("/:adminId/results/fix-missing-fields", async (req, res) => {
+    try {
+        const db = getDB(req);
+        const { admission_no, academic_year } = req.body;
+
+        // Find results that need fixing
+        let query = {
+            $or: [
+                { total_obtained: { $exists: false } },
+                { total_max: { $exists: false } },
+                { percentage: { $exists: false } },
+                { grade: { $exists: false } }
+            ]
+        };
+
+        if (admission_no) query.admission_no = admission_no;
+        if (academic_year) query.academic_year = academic_year;
+
+        const resultsToFix = await db.collection("results").find(query).toArray();
+
+        if (resultsToFix.length === 0) {
+            return res.json({ message: "No results need fixing", fixed: 0 });
+        }
+
+        let fixed = 0;
+        let errors = [];
+
+        for (const result of resultsToFix) {
+            try {
+                // Calculate totals from marks (infer max marks from common patterns)
+                let totalObtained = 0;
+                let totalMax = 0;
+                const updatedMarks = {};
+
+                // Common max marks patterns
+                const defaultMaxMarks = {
+                    theory: 70,
+                    practical: 30,
+                    THEORY: 70,
+                    PRACTICAL: 30,
+                    written: 70,
+                    oral: 30
+                };
+
+                for (const [componentId, markData] of Object.entries(result.marks)) {
+                    const maxMarks = markData.max || defaultMaxMarks[componentId] || 50;
+
+                    updatedMarks[componentId] = {
+                        obtained: markData.obtained || 0,
+                        max: maxMarks,
+                        absent: markData.absent || false
+                    };
+
+                    if (!markData.absent) {
+                        totalObtained += markData.obtained || 0;
+                    }
+                    totalMax += maxMarks;
+                }
+
+                // Calculate percentage and grade
+                const percentage = totalMax > 0 ? (totalObtained / totalMax) * 100 : 0;
+
+                // Simple grading system
+                let grade, remarks;
+                if (percentage >= 90) { grade = "A+"; remarks = "Excellent"; }
+                else if (percentage >= 80) { grade = "A"; remarks = "Very Good"; }
+                else if (percentage >= 70) { grade = "B+"; remarks = "Good"; }
+                else if (percentage >= 60) { grade = "B"; remarks = "Above Average"; }
+                else if (percentage >= 50) { grade = "C"; remarks = "Average"; }
+                else if (percentage >= 40) { grade = "D"; remarks = "Pass"; }
+                else { grade = "F"; remarks = "Fail"; }
+
+                // Update the result
+                await db.collection("results").updateOne(
+                    { _id: result._id },
+                    {
+                        $set: {
+                            marks: updatedMarks,
+                            total_obtained: totalObtained,
+                            total_max: totalMax,
+                            percentage: parseFloat(percentage.toFixed(2)),
+                            grade: grade,
+                            remarks: remarks
+                        }
+                    }
+                );
+
+                fixed++;
+            } catch (err) {
+                errors.push({
+                    admission_no: result.admission_no,
+                    subject: result.subject,
+                    error: err.message
+                });
+            }
+        }
+
+        // Regenerate analytics for affected students
+        const { updateStudentAnalytics } = await import('../utils/updateStudentAnalytics.js');
+        const affectedStudents = [...new Set(resultsToFix.map(r => r.admission_no))];
+
+        for (const admNo of affectedStudents) {
+            const year = resultsToFix.find(r => r.admission_no === admNo)?.academic_year || "2024-25";
+            await updateStudentAnalytics(db, [admNo], year);
+        }
+
+        res.json({
+            message: "Results fixed successfully",
+            fixed: fixed,
+            errors: errors.length > 0 ? errors : undefined,
+            students_updated: affectedStudents.length
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// ==================== MARKING SCHEMES MANAGEMENT ====================
+
+import MARKING_SCHEME_TEMPLATES from '../utils/markingSchemeTemplates.js';
+
+/**
+ * @route   GET /api/admin/:adminId/marking-schemes/templates
+ * @desc    Get preset marking scheme templates
+ */
+router.get("/:adminId/marking-schemes/templates", async (req, res) => {
+    try {
+        res.json(MARKING_SCHEME_TEMPLATES);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+/**
+ * @route   POST /api/admin/:adminId/marking-schemes
+ * @desc    Create a new marking scheme
+ */
+router.post("/:adminId/marking-schemes", async (req, res) => {
+    try {
+        const db = getDB(req);
+        const {
+            scheme_name,
+            academic_year,
+            applicable_to,
+            components,
+            grading_system,
+            template
+        } = req.body;
+        const adminId = req.params.adminId;
+
+        // Validate required fields
+        if (!scheme_name || !academic_year || !applicable_to) {
+            return res.status(400).json({
+                message: "scheme_name, academic_year, and applicable_to are required"
+            });
+        }
+
+        // If using a template, load it
+        let schemeData = {
+            components: components || [],
+            grading_system: grading_system || {}
+        };
+
+        if (template && MARKING_SCHEME_TEMPLATES[template]) {
+            const templateData = MARKING_SCHEME_TEMPLATES[template];
+            schemeData.components = components || templateData.components;
+            schemeData.grading_system = grading_system || templateData.grading_system;
+        }
+
+        // Check if scheme already exists for same class/section/year
+        const existing = await db.collection("marking_schemes").findOne({
+            academic_year: academic_year,
+            "applicable_to.classes": { $in: applicable_to.classes },
+            "applicable_to.sections": { $in: applicable_to.sections },
+            status: "Active"
+        });
+
+        if (existing) {
+            return res.status(400).json({
+                message: "An active marking scheme already exists for this class/section/year combination"
+            });
+        }
+
+        const scheme = {
+            scheme_name,
+            academic_year,
+            applicable_to: {
+                classes: applicable_to.classes || ["All"],
+                sections: applicable_to.sections || ["All"]
+            },
+            components: schemeData.components,
+            grading_system: schemeData.grading_system,
+            status: "Active",
+            created_by: adminId,
+            created_at: new Date(),
+            updated_at: new Date()
+        };
+
+        const result = await db.collection("marking_schemes").insertOne(scheme);
+
+        res.status(201).json({
+            message: "Marking scheme created successfully",
+            scheme_id: result.insertedId,
+            scheme: scheme
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+/**
+ * @route   GET /api/admin/:adminId/marking-schemes
+ * @desc    Get all marking schemes with optional filters
+ */
+router.get("/:adminId/marking-schemes", async (req, res) => {
+    try {
+        const db = getDB(req);
+        const { academic_year, class: className, section, status } = req.query;
+
+        let query = {};
+
+        if (academic_year) {
+            query.academic_year = academic_year;
+        }
+
+        if (className) {
+            query.$or = [
+                { "applicable_to.classes": className },
+                { "applicable_to.classes": "All" }
+            ];
+        }
+
+        if (section) {
+            query.$or = [
+                ...(query.$or || []),
+                { "applicable_to.sections": section },
+                { "applicable_to.sections": "All" }
+            ];
+        }
+
+        if (status) {
+            query.status = status;
+        }
+
+        const schemes = await db.collection("marking_schemes")
+            .find(query)
+            .sort({ created_at: -1 })
+            .toArray();
+
+        res.json(schemes);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+/**
+ * @route   GET /api/admin/:adminId/marking-schemes/:schemeId
+ * @desc    Get specific marking scheme details
+ */
+router.get("/:adminId/marking-schemes/:schemeId", async (req, res) => {
+    try {
+        const db = getDB(req);
+        const { schemeId } = req.params;
+
+        const scheme = await db.collection("marking_schemes").findOne({
+            _id: new ObjectId(schemeId)
+        });
+
+        if (!scheme) {
+            return res.status(404).json({ message: "Marking scheme not found" });
+        }
+
+        res.json(scheme);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+/**
+ * @route   PUT /api/admin/:adminId/marking-schemes/:schemeId
+ * @desc    Update marking scheme
+ */
+router.put("/:adminId/marking-schemes/:schemeId", async (req, res) => {
+    try {
+        const db = getDB(req);
+        const { schemeId } = req.params;
+        const updateData = { ...req.body };
+
+        // Remove fields that shouldn't be updated
+        delete updateData._id;
+        delete updateData.created_at;
+        delete updateData.created_by;
+
+        updateData.updated_at = new Date();
+
+        const result = await db.collection("marking_schemes").updateOne(
+            { _id: new ObjectId(schemeId) },
+            { $set: updateData }
+        );
+
+        if (result.matchedCount === 0) {
+            return res.status(404).json({ message: "Marking scheme not found" });
+        }
+
+        res.json({ message: "Marking scheme updated successfully" });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+/**
+ * @route   PATCH /api/admin/:adminId/marking-schemes/:schemeId/archive
+ * @desc    Archive a marking scheme (soft delete)
+ */
+router.patch("/:adminId/marking-schemes/:schemeId/archive", async (req, res) => {
+    try {
+        const db = getDB(req);
+        const { schemeId } = req.params;
+
+        const result = await db.collection("marking_schemes").updateOne(
+            { _id: new ObjectId(schemeId) },
+            {
+                $set: {
+                    status: "Archived",
+                    updated_at: new Date()
+                }
+            }
+        );
+
+        if (result.matchedCount === 0) {
+            return res.status(404).json({ message: "Marking scheme not found" });
+        }
+
+        res.json({ message: "Marking scheme archived successfully" });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+/**
+ * @route   DELETE /api/admin/:adminId/marking-schemes/:schemeId
+ * @desc    Delete marking scheme
+ */
+router.delete("/:adminId/marking-schemes/:schemeId", async (req, res) => {
+    try {
+        const db = getDB(req);
+        const { schemeId } = req.params;
+
+        const result = await db.collection("marking_schemes").deleteOne({
+            _id: new ObjectId(schemeId)
+        });
+
+        if (result.deletedCount === 0) {
+            return res.status(404).json({ message: "Marking scheme not found" });
+        }
+
+        res.json({ message: "Marking scheme deleted successfully" });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+// ==================== ATTENDANCE BACKLOG MANAGEMENT ====================
+
+/**
+ * @route   POST /api/admin/:adminId/attendance-backlog
+ * @desc    Create a new attendance backlog window
+ */
+router.post("/:adminId/attendance-backlog", async (req, res) => {
+    try {
+        const db = getDB(req);
+        const { start_date, end_date, class_section, reason } = req.body;
+        const adminId = req.params.adminId;
+
+        // Validate required fields
+        if (!start_date || !end_date || !class_section) {
+            return res.status(400).json({ message: "start_date, end_date, and class_section are required" });
+        }
+
+        // Parse dates
+        const [startYear, startMonth, startDay] = start_date.split('-').map(num => parseInt(num, 10));
+        const [endYear, endMonth, endDay] = end_date.split('-').map(num => parseInt(num, 10));
+
+        const startDate = new Date(Date.UTC(startYear, startMonth - 1, startDay, 0, 0, 0, 0));
+        const endDate = new Date(Date.UTC(endYear, endMonth - 1, endDay, 23, 59, 59, 999));
+
+        // Validate date range
+        if (startDate > endDate) {
+            return res.status(400).json({ message: "start_date must be before or equal to end_date" });
+        }
+
+        const backlogData = {
+            start_date: startDate,
+            end_date: endDate,
+            class_section: class_section, // Can be "3-A" or "All"
+            status: "Open",
+            created_by: adminId,
+            created_at: new Date(),
+            closed_at: null,
+            reason: reason || "Backlog window opened by admin"
+        };
+
+        const result = await db.collection("attendance_backlog").insertOne(backlogData);
+
+        res.status(201).json({
+            message: "Attendance backlog window created successfully",
+            backlogId: result.insertedId,
+            backlog: backlogData
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+/**
+ * @route   GET /api/admin/:adminId/attendance-backlog
+ * @desc    Get all attendance backlog windows with optional filters
+ */
+router.get("/:adminId/attendance-backlog", async (req, res) => {
+    try {
+        const db = getDB(req);
+        const { status, class_section } = req.query;
+
+        let query = {};
+
+        if (status) {
+            query.status = status;
+        }
+
+        if (class_section) {
+            query.class_section = class_section;
+        }
+
+        const backlogs = await db.collection("attendance_backlog")
+            .find(query)
+            .sort({ created_at: -1 })
+            .toArray();
+
+        // Dynamically update status to "Expired" if current date is strictly past end_date
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const enrichedBacklogs = backlogs.map(backlog => {
+            const endDate = new Date(backlog.end_date);
+            endDate.setHours(0, 0, 0, 0);
+
+            if (backlog.status === "Open" && endDate < today) {
+                return { ...backlog, status: "Expired" };
+            }
+            return backlog;
+        });
+
+        res.json(enrichedBacklogs);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+/**
+ * @route   PATCH /api/admin/:adminId/attendance-backlog/:backlogId/close
+ * @desc    Close an open backlog window
+ */
+router.patch("/:adminId/attendance-backlog/:backlogId/close", async (req, res) => {
+    try {
+        const db = getDB(req);
+        const { backlogId } = req.params;
+
+        const result = await db.collection("attendance_backlog").updateOne(
+            { _id: new ObjectId(backlogId), status: "Open" },
+            {
+                $set: {
+                    status: "Closed",
+                    closed_at: new Date()
+                }
+            }
+        );
+
+        if (result.matchedCount === 0) {
+            return res.status(404).json({ message: "Open backlog window not found" });
+        }
+
+        res.json({ message: "Backlog window closed successfully" });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+/**
+ * @route   DELETE /api/admin/:adminId/attendance-backlog/:backlogId
+ * @desc    Delete a backlog window
+ */
+router.delete("/:adminId/attendance-backlog/:backlogId", async (req, res) => {
+    try {
+        const db = getDB(req);
+        const { backlogId } = req.params;
+
+        const result = await db.collection("attendance_backlog").deleteOne({
+            _id: new ObjectId(backlogId)
+        });
+
+        if (result.deletedCount === 0) {
+            return res.status(404).json({ message: "Backlog window not found" });
+        }
+
+        res.json({ message: "Backlog window deleted successfully" });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
 export default router;
+

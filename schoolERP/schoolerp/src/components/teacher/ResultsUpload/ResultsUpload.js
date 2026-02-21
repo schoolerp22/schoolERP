@@ -3,7 +3,7 @@ import { Save, Eye, Download, Upload, AlertCircle, CheckCircle, X, FileUp } from
 import { useDispatch, useSelector } from "react-redux";
 
 import {
-  getStudentsByClass,
+  getStudentsForResults,
   getMarkingScheme,
   uploadResults,
   clearError,
@@ -18,7 +18,7 @@ export default function ResultsUpload({ teacherId, profile, selectedClass: initi
 
   // ===== REDUX STATE =====
   const {
-    selectedClassStudents: students = [],
+    resultsStudents: students = [],
     markingScheme,
     loadings,
     loading: formLoading,
@@ -60,17 +60,44 @@ export default function ResultsUpload({ teacherId, profile, selectedClass: initi
     { component_id: "practical", component_name: "Practical", max_marks: 30 }
   ];
 
+  // Map new marking scheme structure to old component format for UI compatibility
+  const mapComponents = (scheme) => {
+    if (!scheme?.components || scheme.components.length === 0) {
+      return defaultComponents;
+    }
+
+    const mapped = [];
+    scheme.components.forEach((comp) => {
+      if (comp.sub_components && comp.sub_components.length > 0) {
+        // If component has sub-components, flatten them
+        comp.sub_components.forEach((subComp) => {
+          mapped.push({
+            component_id: `${comp.name.toLowerCase().replace(/\s+/g, '_')}_${subComp.name.toLowerCase().replace(/\s+/g, '_')}`,
+            component_name: `${comp.name} - ${subComp.name}`,
+            max_marks: subComp.max_marks
+          });
+        });
+      } else {
+        // No sub-components, use component directly
+        mapped.push({
+          component_id: comp.name.toLowerCase().replace(/\s+/g, '_'),
+          component_name: comp.name,
+          max_marks: comp.max_marks
+        });
+      }
+    });
+    return mapped;
+  };
+
   // Use marking scheme components or default
-  const components = markingScheme?.components && markingScheme.components.length > 0
-    ? markingScheme.components
-    : defaultComponents;
+  const components = mapComponents(markingScheme);
 
   // ===== FETCH DATA =====
   useEffect(() => {
     if (!teacherId) return;
 
     dispatch(
-      getStudentsByClass({
+      getStudentsForResults({
         teacherId,
         classSection: `${selectedClass}-${selectedSection}`
       })
@@ -79,7 +106,8 @@ export default function ResultsUpload({ teacherId, profile, selectedClass: initi
     dispatch(
       getMarkingScheme({
         teacherId,
-        classNum: selectedClass
+        classNum: selectedClass,
+        section: selectedSection
       })
     );
   }, [teacherId, selectedClass, selectedSection, dispatch]);
@@ -137,7 +165,22 @@ export default function ResultsUpload({ teacherId, profile, selectedClass: initi
 
   // ===== HANDLERS =====
   const handleMarkChange = (admissionNo, componentId, value, maxMarks) => {
-    const numValue = Number(value) || 0;
+    // Allow empty string to clear the input
+    if (value === "") {
+      setMarksData((prev) => ({
+        ...prev,
+        [admissionNo]: {
+          ...prev[admissionNo],
+          [componentId]: {
+            ...prev[admissionNo]?.[componentId],
+            obtained: ""
+          }
+        }
+      }));
+      return;
+    }
+
+    const numValue = Number(value);
 
     // Validate against max marks
     if (numValue > maxMarks) {
@@ -218,9 +261,9 @@ export default function ResultsUpload({ teacherId, profile, selectedClass: initi
       return;
     }
 
-    // Validate that at least some marks are entered
+    // Validate that at least some marks are entered (allow 0)
     const hasMarks = Object.values(marksData).some(studentMarks =>
-      Object.values(studentMarks).some(mark => mark.obtained > 0)
+      Object.values(studentMarks).some(mark => mark.obtained !== "" && mark.obtained !== undefined && mark.obtained !== null)
     );
 
     if (!hasMarks) {
@@ -338,24 +381,26 @@ export default function ResultsUpload({ teacherId, profile, selectedClass: initi
           </div>
         )}
 
-        {/* Header Card */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <div className="flex items-center justify-between mb-6">
+        {/* Header Section */}
+        <div className="bg-transparent sm:bg-white sm:rounded-xl sm:shadow-sm sm:border sm:border-gray-100 p-4 sm:p-6 mb-4 sm:mb-6">
+          <div className="flex items-center justify-between mb-4 sm:mb-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-800">Upload Student Results</h1>
-              <p className="text-gray-600 mt-1">Enter marks for students and publish results</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Upload Results</h1>
+              <p className="text-sm sm:text-base text-gray-500 mt-1 font-medium">Enter marks and publish results</p>
             </div>
-            <Upload className="text-blue-600" size={32} />
+            <div className="bg-indigo-50 p-3 rounded-2xl hidden sm:block">
+              <Upload className="text-indigo-600" size={28} />
+            </div>
           </div>
 
           {/* SELECTION */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Class</label>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+            <div className="col-span-1">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Class</label>
               <select
                 value={selectedClass}
                 onChange={(e) => setSelectedClass(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                className="w-full px-3 py-2.5 sm:py-2.5 bg-gray-50 border border-gray-200 rounded-xl sm:rounded-lg text-sm font-semibold focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all"
               >
                 {[...Array(12)].map((_, i) => (
                   <option key={i + 1} value={i + 1}>Class {i + 1}</option>
@@ -363,12 +408,12 @@ export default function ResultsUpload({ teacherId, profile, selectedClass: initi
               </select>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Section</label>
+            <div className="col-span-1">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Section</label>
               <select
                 value={selectedSection}
                 onChange={(e) => setSelectedSection(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                className="w-full px-3 py-2.5 sm:py-2.5 bg-gray-50 border border-gray-200 rounded-xl sm:rounded-lg text-sm font-semibold focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all"
               >
                 {["A", "B", "C", "D"].map((s) => (
                   <option key={s} value={s}>Section {s}</option>
@@ -376,12 +421,12 @@ export default function ResultsUpload({ teacherId, profile, selectedClass: initi
               </select>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Exam</label>
+            <div className="col-span-2 sm:col-span-1">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Exam</label>
               <select
                 value={selectedExam}
                 onChange={(e) => setSelectedExam(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                className="w-full px-3 py-2.5 sm:py-2.5 bg-gray-50 border border-gray-200 rounded-xl sm:rounded-lg text-sm font-semibold focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all"
               >
                 <option value="">Select Exam</option>
                 {exams.map((e) => (
@@ -390,12 +435,12 @@ export default function ResultsUpload({ teacherId, profile, selectedClass: initi
               </select>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Subject</label>
+            <div className="col-span-2 sm:col-span-1">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Subject</label>
               <select
                 value={selectedSubject}
                 onChange={(e) => setSelectedSubject(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                className="w-full px-3 py-2.5 sm:py-2.5 bg-gray-50 border border-gray-200 rounded-xl sm:rounded-lg text-sm font-semibold focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all"
               >
                 <option value="">Select Subject</option>
                 {subjects.map((s) => (
@@ -406,26 +451,37 @@ export default function ResultsUpload({ teacherId, profile, selectedClass: initi
           </div>
 
           {/* Info Banner */}
-          {!markingScheme?.components?.length && (
+          {markingScheme?.scheme_name ? (
+            <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-4 flex items-start gap-3">
+              <CheckCircle className="text-green-600 flex-shrink-0 mt-0.5" size={20} />
+              <div className="text-sm text-green-800">
+                <p className="font-semibold mb-1">Using: {markingScheme.scheme_name}</p>
+                <p>
+                  {components.map(c => c.component_name).join(' + ')}
+                  {' '}(Total: {components.reduce((sum, c) => sum + c.max_marks, 0)} marks)
+                </p>
+              </div>
+            </div>
+          ) : (
             <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
               <AlertCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
               <div className="text-sm text-blue-800">
                 <p className="font-semibold mb-1">Using Default Marking Scheme</p>
-                <p>Theory (70 marks) + Practical (30 marks). Configure marking scheme in settings for custom components.</p>
+                <p>Theory (70 marks) + Practical (30 marks). Admin can configure marking schemes for custom components.</p>
               </div>
             </div>
           )}
 
-          <div className="mt-4 flex flex-wrap items-center gap-3">
+          <div className="mt-4 flex flex-row items-center gap-2 sm:gap-3 overflow-x-auto hide-scrollbar pb-2 sm:pb-0 -mx-4 px-4 sm:mx-0 sm:px-0">
             <button
               onClick={downloadTemplate}
               disabled={!students.length}
-              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-5 py-2.5 rounded-lg font-medium transition-colors shadow-sm"
+              className="flex items-center justify-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 disabled:bg-gray-100 disabled:text-gray-400 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors whitespace-nowrap active:scale-95"
             >
-              <Download size={18} /> Download CSV Template
+              <Download size={18} /> Template
             </button>
 
-            <label className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors shadow-sm cursor-pointer">
+            <label className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm transition-colors cursor-pointer shadow-sm whitespace-nowrap active:scale-95">
               <FileUp size={18} /> Upload CSV
               <input
                 type="file"
@@ -451,40 +507,41 @@ export default function ResultsUpload({ teacherId, profile, selectedClass: initi
           </div>
         </div>
 
-        {/* TABLE */}
+        {/* DATA ENTRY SECTION */}
         {students.length > 0 ? (
-          <div className="bg-white rounded-lg shadow-md overflow-hidden">
-            <div className="overflow-x-auto">
+          <div className="bg-transparent sm:bg-white sm:rounded-xl sm:shadow-sm sm:border sm:border-gray-100 overflow-hidden mb-24 sm:mb-0">
+
+            {/* Desktop Table View (Hidden on mobile) */}
+            <div className="hidden sm:block overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
-                    <th className="px-4 py-3 text-left text-sm font-semibold sticky left-0 bg-blue-600">Roll No</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold min-w-[200px]">Admission No</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold min-w-[180px]">Student Name</th>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50">Roll No</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider min-w-[140px]">Admission No</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider min-w-[180px]">Student Name</th>
                     {components.map((c) => (
-                      <th key={c.component_id} className="px-4 py-3 text-center text-sm font-semibold min-w-[140px]">
+                      <th key={c.component_id} className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider min-w-[140px]">
                         <div>{c.component_name}</div>
-                        <div className="text-xs font-normal text-blue-100 mt-1">(Max: {c.max_marks})</div>
+                        <div className="text-[10px] font-medium text-indigo-400 mt-0.5">(Max: {c.max_marks})</div>
                       </th>
                     ))}
-                    <th className="px-4 py-3 text-center text-sm font-semibold">Total</th>
-                    <th className="px-4 py-3 text-center text-sm font-semibold">%</th>
-                    <th className="px-4 py-3 text-center text-sm font-semibold">Grade</th>
+                    <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Total</th>
+                    <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">%</th>
+                    <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Grade</th>
                   </tr>
                 </thead>
 
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-gray-100">
                   {students.map((s, idx) => {
                     const total = calculateTotal(s.admission_no);
                     const grade = getGrade(Number(total.percentage));
 
                     return (
-                      <tr key={s.admission_no} className={idx % 2 === 0 ? "bg-white hover:bg-gray-50" : "bg-gray-50 hover:bg-gray-100"}>
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900 sticky left-0 bg-inherit">{s.roll_no}</td>
-                        <td className="px-4 py-3 text-sm font-mono text-gray-700">{s.admission_no}</td>
-                        <td className="px-4 py-3 text-sm text-gray-900">
-                          {s.personal_details?.first_name}{" "}
-                          {s.personal_details?.last_name}
+                      <tr key={s.admission_no} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="px-4 py-3 text-sm font-bold text-gray-900 bg-inherit">{s.roll_no}</td>
+                        <td className="px-4 py-3 text-xs font-mono font-medium text-gray-500">{s.admission_no}</td>
+                        <td className="px-4 py-3 text-sm font-semibold text-gray-900">
+                          {s.personal_details?.first_name} {s.personal_details?.last_name}
                         </td>
 
                         {components.map((c) => {
@@ -492,13 +549,13 @@ export default function ResultsUpload({ teacherId, profile, selectedClass: initi
 
                           return (
                             <td key={c.component_id} className="px-4 py-3">
-                              <div className="flex flex-col gap-1">
+                              <div className="flex flex-col gap-1.5 items-center">
                                 <input
                                   type="number"
                                   min="0"
                                   max={c.max_marks}
                                   disabled={isAbsent}
-                                  value={marksData[s.admission_no]?.[c.component_id]?.obtained || 0}
+                                  value={marksData[s.admission_no]?.[c.component_id]?.obtained !== undefined ? marksData[s.admission_no]?.[c.component_id]?.obtained : ""}
                                   onChange={(e) =>
                                     handleMarkChange(
                                       s.admission_no,
@@ -507,31 +564,31 @@ export default function ResultsUpload({ teacherId, profile, selectedClass: initi
                                       c.max_marks
                                     )
                                   }
-                                  className={`w-full px-3 py-2 text-center border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all ${isAbsent ? 'bg-gray-100 text-gray-400' : 'border-gray-300'
+                                  className={`w-20 px-2 py-1.5 text-center text-sm font-bold border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all ${isAbsent ? 'bg-gray-100 border-gray-200 text-gray-400' : 'bg-gray-50 border-gray-200 text-gray-900 hover:bg-white focus:bg-white'
                                     }`}
                                 />
-                                <label className="flex items-center justify-center gap-1 text-xs text-gray-600 cursor-pointer">
+                                <label className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 cursor-pointer uppercase tracking-wider">
                                   <input
                                     type="checkbox"
                                     checked={isAbsent}
                                     onChange={() => handleAbsentToggle(s.admission_no, c.component_id)}
-                                    className="rounded"
+                                    className="w-3 h-3 text-red-500 border-gray-300 rounded focus:ring-red-500"
                                   />
-                                  Absent
+                                  Abs
                                 </label>
                               </div>
                             </td>
                           );
                         })}
 
-                        <td className="px-4 py-3 text-center text-sm font-semibold text-gray-900">
-                          {total.obtained}/{total.max}
+                        <td className="px-4 py-3 text-center text-sm font-bold text-indigo-700 bg-indigo-50/30">
+                          {total.obtained}<span className="text-xs text-gray-400 font-medium">/{total.max}</span>
                         </td>
-                        <td className="px-4 py-3 text-center text-sm font-semibold text-gray-900">
+                        <td className="px-4 py-3 text-center text-sm font-bold text-gray-900 bg-indigo-50/30">
                           {total.percentage}%
                         </td>
-                        <td className="px-4 py-3 text-center">
-                          <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold border ${getGradeColor(grade)}`}>
+                        <td className="px-4 py-3 text-center bg-indigo-50/30">
+                          <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold border ${getGradeColor(grade)}`}>
                             {grade}
                           </span>
                         </td>
@@ -542,42 +599,119 @@ export default function ResultsUpload({ teacherId, profile, selectedClass: initi
               </table>
             </div>
 
-            <div className="bg-gray-50 px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4 border-t border-gray-200">
-              <div className="text-sm text-gray-600">
-                Total Students: <span className="font-semibold text-gray-900">{students.length}</span>
+            {/* Mobile Card View */}
+            <div className="sm:hidden flex flex-col gap-3 px-4 sm:px-0">
+              {students.map((s) => {
+                const total = calculateTotal(s.admission_no);
+                const grade = getGrade(Number(total.percentage));
+
+                return (
+                  <div key={s.admission_no} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 animate-in fade-in zoom-in-95 duration-200">
+                    <div className="flex justify-between items-start mb-4 border-b border-gray-50 pb-3">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-0.5 rounded-md">Roll {s.roll_no}</span>
+                          <span className="text-[10px] font-mono font-medium text-gray-400">{s.admission_no}</span>
+                        </div>
+                        <h3 className="text-base font-bold text-gray-900 leading-tight">
+                          {s.personal_details?.first_name} {s.personal_details?.last_name}
+                        </h3>
+                      </div>
+                      <div className="text-right flex flex-col items-end">
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border mb-1 ${getGradeColor(grade)}`}>
+                          Grade {grade}
+                        </span>
+                        <div className="text-sm font-bold text-indigo-700">{total.obtained}<span className="text-xs text-gray-400">/{total.max}</span></div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      {components.map((c) => {
+                        const isAbsent = marksData[s.admission_no]?.[c.component_id]?.absent;
+
+                        return (
+                          <div key={c.component_id} className="bg-gray-50/80 p-3 rounded-xl border border-gray-100">
+                            <div className="flex justify-between items-center mb-2">
+                              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider truncate mr-2">{c.component_name}</label>
+                              <span className="text-[9px] font-semibold text-indigo-400 bg-indigo-50 px-1.5 rounded">Max {c.max_marks}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                min="0"
+                                max={c.max_marks}
+                                disabled={isAbsent}
+                                placeholder="0"
+                                value={marksData[s.admission_no]?.[c.component_id]?.obtained !== undefined ? marksData[s.admission_no]?.[c.component_id]?.obtained : ""}
+                                onChange={(e) =>
+                                  handleMarkChange(
+                                    s.admission_no,
+                                    c.component_id,
+                                    e.target.value,
+                                    c.max_marks
+                                  )
+                                }
+                                className={`flex-1 w-full px-2 py-2 text-center text-sm font-bold border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all ${isAbsent ? 'bg-gray-200 border-gray-200 text-gray-400' : 'bg-white border-gray-200 text-gray-900'
+                                  }`}
+                              />
+                              <label className="flex flex-col items-center gap-1 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={isAbsent}
+                                  onChange={() => handleAbsentToggle(s.admission_no, c.component_id)}
+                                  className="w-4 h-4 text-red-500 border-gray-300 rounded focus:ring-red-500"
+                                />
+                                <span className="text-[8px] font-bold text-gray-500 uppercase">Abs</span>
+                              </label>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Sticky Action Footer */}
+            <div className="fixed sm:static bottom-0 left-0 right-0 sm:mt-0 p-4 sm:p-6 bg-white sm:bg-gray-50 border-t border-gray-100 sm:border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-3 sm:gap-4 z-30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] sm:shadow-none pb-safe">
+              <div className="text-sm font-semibold text-gray-500 w-full sm:w-auto text-center sm:text-left">
+                Students: <span className="font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">{students.length}</span>
               </div>
-              <div className="flex gap-3">
+              <div className="flex w-full sm:w-auto gap-2 sm:gap-3">
                 <button
                   onClick={() => handleSubmit(false)}
                   disabled={loading || !selectedExam || !selectedSubject}
-                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-lg font-medium transition-colors shadow-sm"
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400 text-gray-700 px-4 sm:px-6 py-3 rounded-xl font-bold transition-all active:scale-95 text-sm"
                 >
-                  <Save size={18} /> Save Draft
+                  <Save size={18} /> Draft
                 </button>
 
                 <button
                   onClick={() => handleSubmit(true)}
                   disabled={loading || !selectedExam || !selectedSubject}
-                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-green-300 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-lg font-medium transition-colors shadow-sm"
+                  className="flex-[2] sm:flex-none flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 disabled:cursor-not-allowed text-white px-4 sm:px-6 py-3 rounded-xl font-bold transition-all shadow-sm active:scale-95 text-sm"
                 >
-                  <Eye size={18} /> Save & Publish
+                  <Eye size={18} /> Publish
                 </button>
               </div>
             </div>
           </div>
         ) : (
-          <div className="bg-white rounded-lg shadow-md p-12 text-center">
+          <div className="bg-transparent sm:bg-white sm:rounded-2xl sm:border border-gray-100 sm:shadow-sm p-8 sm:p-16 text-center mx-4 sm:mx-0">
             {loading ? (
               <div className="flex flex-col items-center gap-4">
-                <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent"></div>
-                <p className="text-gray-600">Loading students...</p>
+                <div className="animate-spin rounded-full h-10 w-10 border-[3px] border-indigo-200 border-t-indigo-600"></div>
+                <p className="text-sm font-bold text-gray-500 uppercase tracking-wider">Loading students...</p>
               </div>
             ) : (
-              <>
-                <AlertCircle className="mx-auto text-gray-400 mb-4" size={48} />
-                <h3 className="text-xl font-semibold text-gray-700 mb-2">No Students Found</h3>
-                <p className="text-gray-600">Please select a class and section to view students</p>
-              </>
+              <div className="flex flex-col items-center justify-center">
+                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
+                  <AlertCircle className="text-gray-300" size={32} />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-1">No Students Found</h3>
+                <p className="text-sm font-medium text-gray-500">Please select a class and section to view students</p>
+              </div>
             )}
           </div>
         )}

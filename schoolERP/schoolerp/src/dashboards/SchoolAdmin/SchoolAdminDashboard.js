@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-
+import { Home, Users, BookOpen, Menu } from 'lucide-react';
 // Components
 import Sidebar from '../../components/admin/Sidebar/Sidebar';
 import Header from '../../components/admin/Header/Header';
@@ -14,6 +14,8 @@ import TeacherModal from '../../components/admin/TeacherModal/TeacherModal';
 import StudentModal from '../../components/admin/StudentModal/StudentModal';
 import TeacherDetailModal from '../../components/admin/TeacherDetailModal/TeacherDetailModal';
 import StudentDetailModal from '../../components/admin/StudentDetailModal/StudentDetailModal';
+import AttendanceBacklog from '../../components/admin/AttendanceBacklog/AttendanceBacklog';
+import MarkingSchemeManagement from '../../components/admin/MarkingSchemeManagement/MarkingSchemeManagement';
 
 // Redux actions
 import {
@@ -348,6 +350,10 @@ export default function SchoolAdminDashboard() {
             loading={loading}
           />
         );
+      case 'attendance-backlog':
+        return <AttendanceBacklog />;
+      case 'marking-schemes':
+        return <MarkingSchemeManagement />;
       default:
         return (
           <DashboardView
@@ -386,9 +392,44 @@ export default function SchoolAdminDashboard() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header currentView={currentView} />
 
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 sm:pb-6">
           {renderView()}
         </main>
+      </div>
+
+      {/* Mobile Bottom Navigation */}
+      <div className="md:hidden fixed bottom-0 w-full bg-white border-t border-gray-200 flex justify-around items-center h-16 px-2 z-40 pb-safe">
+        <button
+          onClick={() => setCurrentView('dashboard')}
+          className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${currentView === 'dashboard' ? 'text-indigo-600' : 'text-gray-500'}`}
+        >
+          <Home className="h-6 w-6" />
+          <span className="text-[10px] font-medium">Home</span>
+        </button>
+
+        <button
+          onClick={() => setCurrentView('teachers')}
+          className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${currentView === 'teachers' ? 'text-indigo-600' : 'text-gray-500'}`}
+        >
+          <BookOpen className="h-6 w-6" />
+          <span className="text-[10px] font-medium">Teachers</span>
+        </button>
+
+        <button
+          onClick={() => setCurrentView('students')}
+          className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${currentView === 'students' ? 'text-indigo-600' : 'text-gray-500'}`}
+        >
+          <Users className="h-6 w-6" />
+          <span className="text-[10px] font-medium">Students</span>
+        </button>
+
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="flex flex-col items-center justify-center w-full h-full space-y-1 text-gray-500"
+        >
+          <Menu className="h-6 w-6" />
+          <span className="text-[10px] font-medium">Menu</span>
+        </button>
       </div>
 
       {/* Delete Confirmation Modal */}

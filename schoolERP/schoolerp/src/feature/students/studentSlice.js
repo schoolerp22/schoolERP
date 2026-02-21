@@ -35,6 +35,24 @@ export const getStudentHomework = createAsyncThunk(
   }
 );
 
+// Submit Homework
+export const submitHomework = createAsyncThunk(
+  "student/submitHomework",
+  async ({ studentId, homeworkId, submissionData }, { rejectWithValue }) => {
+    try {
+      const config = { headers: { "Content-Type": "multipart/form-data" } };
+      const response = await axios.post(
+        `${API_URL}/${studentId}/homework/${homeworkId}/submit`,
+        submissionData,
+        config
+      );
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
 // Get Attendance
 export const getStudentAttendance = createAsyncThunk(
   "student/getAttendance",
@@ -118,7 +136,8 @@ export const applyForLeave = createAsyncThunk(
   "student/applyLeave",
   async ({ studentId, leaveData }, { rejectWithValue }) => {
     try {
-      const res = await axios.post(`${API_URL}/${studentId}/leave`, leaveData);
+      const config = { headers: { "Content-Type": "multipart/form-data" } };
+      const res = await axios.post(`${API_URL}/${studentId}/leave`, leaveData, config);
       return res.data;
     } catch (err) {
       return rejectWithValue(err.response?.data || err.message);

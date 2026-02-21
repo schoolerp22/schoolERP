@@ -99,8 +99,11 @@ router.get("/:admissionNo/analytics", async (req, res) => {
     });
 
     if (!analytics) {
-      return res.status(404).json({ 
-        message: "No analytics found. Results might not be published yet." 
+      // Return default empty analytics to prevent frontend crash
+      return res.json({
+        overall: { total_exams: 0, average_percentage: 0, average_grade: "N/A", total_subjects: 0 },
+        subjects: [],
+        exams: []
       });
     }
 
@@ -174,7 +177,7 @@ router.get("/:admissionNo/subject-performance/:subject", async (req, res) => {
 
     // Get component-wise breakdown
     const componentAnalysis = {};
-    
+
     results.forEach(result => {
       Object.entries(result.marks).forEach(([component, data]) => {
         if (!componentAnalysis[component]) {
@@ -186,7 +189,7 @@ router.get("/:admissionNo/subject-performance/:subject", async (req, res) => {
             average_percentage: 0
           };
         }
-        
+
         componentAnalysis[component].attempts++;
         componentAnalysis[component].total_obtained += data.obtained || 0;
         componentAnalysis[component].total_max += data.max || 0;
@@ -195,7 +198,7 @@ router.get("/:admissionNo/subject-performance/:subject", async (req, res) => {
 
     // Calculate averages
     Object.values(componentAnalysis).forEach(comp => {
-      comp.average_percentage = comp.total_max > 0 
+      comp.average_percentage = comp.total_max > 0
         ? parseFloat(((comp.total_obtained / comp.total_max) * 100).toFixed(2))
         : 0;
     });
@@ -251,7 +254,7 @@ router.get("/:admissionNo/class-rank", async (req, res) => {
     if (exam_id) {
       // Rank for specific exam
       const rankings = [];
-      
+
       for (const analytics of allAnalytics) {
         const examData = analytics.exams.find(e => e.exam_id === exam_id);
         if (examData) {

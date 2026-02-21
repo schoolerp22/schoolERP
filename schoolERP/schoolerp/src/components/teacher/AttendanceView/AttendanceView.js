@@ -32,6 +32,25 @@ const AttendanceView = ({ students, selectedClass, teacherId, loadings }) => {
   // Track if we have already auto-filled from leaves to prevent overwriting manual changes
   const hasAutoFilledRef = useRef(false);
 
+  // New State for Edit Flow
+  const [existingAttendance, setExistingAttendance] = useState([]);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editReason, setEditReason] = useState("");
+  const [showReasonModal, setShowReasonModal] = useState(false);
+
+  // Backlog Status State
+  const [backlogStatus, setBacklogStatus] = useState({ allowed: true, reason: "Today's attendance", isToday: true });
+  const [checkingBacklog, setCheckingBacklog] = useState(false);
+
+  // Computed Check for Past Date
+  const isPastDate = () => {
+    const selected = new Date(attendanceDate);
+    const today = new Date();
+    selected.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    return selected < today;
+  };
+
   // --- 1. DATA FETCHING ---
   useEffect(() => {
     // Tab: Insights
@@ -45,10 +64,22 @@ const AttendanceView = ({ students, selectedClass, teacherId, loadings }) => {
       }
       dispatch(getAttendanceSummary({ teacherId, classSection: selectedClass, ...params }));
     }
-    // Tab: Mark Attendance (Fetch Approved Leaves only)
+    // Tab: Mark Attendance (Fetch Approved Leaves AND Existing Attendance)
     else if (activeTab === 'mark' && selectedClass && attendanceDate) {
       hasAutoFilledRef.current = false;
       dispatch(getApprovedLeaves({ teacherId, date: attendanceDate, classSection: selectedClass }));
+
+      // Fetch existing attendance to see if already marked
+      dispatch(getAttendance({ teacherId, date: attendanceDate, classSection: selectedClass }))
+        .unwrap()
+        .then((data) => {
+          setExistingAttendance(data || []);
+          setIsEditing(data && data.length > 0);
+        })
+        .catch(() => {
+          setExistingAttendance([]);
+          setIsEditing(false);
+        });
     }
     // Tab: History (Fetch Past Attendance)
     else if (activeTab === 'history' && selectedClass && historyDate) {
@@ -56,7 +87,24 @@ const AttendanceView = ({ students, selectedClass, teacherId, loadings }) => {
     }
   }, [activeTab, selectedClass, teacherId, dispatch, attendanceDate, historyDate, summaryRange, selectedMonth, customRange]);
 
-  // --- 2. MARK TAB: Initialize Default State (Present) + Leaves ---
+  // --- CHECK BACKLOG STATUS FOR SELECTED DATE ---
+  useEffect(() => {
+    if (activeTab === 'mark' && selectedClass && attendanceDate) {
+      setCheckingBacklog(true);
+      fetch(`http://localhost:5000/api/teacher/${teacherId}/backlog-status/${attendanceDate}/${selectedClass}`)
+        .then(res => res.json())
+        .then(data => {
+          setBacklogStatus(data);
+          setCheckingBacklog(false);
+        })
+        .catch(() => {
+          setBacklogStatus({ allowed: false, reason: "Error checking backlog status" });
+          setCheckingBacklog(false);
+        });
+    }
+  }, [activeTab, attendanceDate, selectedClass, teacherId]);
+
+  // --- 2. MARK TAB: Initialize Default State (Present) + Leaves + Existing Attendance ---
   useEffect(() => {
     if (activeTab === 'mark' && students && students.length > 0) {
       const initialAttendance = {};
@@ -66,24 +114,51 @@ const AttendanceView = ({ students, selectedClass, teacherId, loadings }) => {
         initialAttendance[student.admission_no] = 'Present';
       });
 
-      // Auto-mark Approved Leaves
-      if (approvedLeaves && approvedLeaves.length > 0) {
-        approvedLeaves.forEach(leave => {
-          if (initialAttendance[leave.admission_no]) {
-            initialAttendance[leave.admission_no] = 'Absent';
+      // Override with Existing Attendance if available
+      if (existingAttendance && existingAttendance.length > 0) {
+        existingAttendance.forEach(record => {
+          if (initialAttendance[record.admission_no]) { // Only if student still in list
+            initialAttendance[record.admission_no] = record.status;
           }
         });
+      }
+      // Only apply leaves if NOT editing existing records (or maybe apply anyway? applying anyway is safer as leaves might be new)
+      // Decision: Apply leaves ON TOP of defaults, but if existing record says 'Present' and leave says 'Absent', trust existing user input? 
+      // Safer: If existing attendance is present, use that. If not, use leaves.
+      // But user typically wants to see the saved state.
+
+      // Auto-mark Approved Leaves (Only if NOT editing or if we want to show leaves visually)
+      // Let's apply leaves to 'Present' defaults, but if we have existing records, we respect them unless we want to force update.
+      // Better UX: Show leaves visual indicator always. Only auto-set status if it's a fresh marking.
+
+      if (!existingAttendance || existingAttendance.length === 0) {
+        if (approvedLeaves && approvedLeaves.length > 0) {
+          approvedLeaves.forEach(leave => {
+            if (initialAttendance[leave.admission_no]) {
+              initialAttendance[leave.admission_no] = 'Absent';
+            }
+          });
+        }
       }
 
       setAttendanceData(initialAttendance);
     }
-  }, [students, activeTab, approvedLeaves, attendanceDate]); // Re-run when leaves load or date changes (reset)
+  }, [students, activeTab, approvedLeaves, existingAttendance, attendanceDate]);
 
   const handleAttendanceChange = (admissionNo, status) => {
+    if (isPastDate() && isEditing) return; // Prevent editing past dates in UI
     setAttendanceData(prev => ({
       ...prev,
       [admissionNo]: status
     }));
+  };
+
+  const initiateSubmit = () => {
+    if (isEditing) {
+      setShowReasonModal(true);
+    } else {
+      submitAttendance();
+    }
   };
 
   const submitAttendance = () => {
@@ -97,9 +172,20 @@ const AttendanceView = ({ students, selectedClass, teacherId, loadings }) => {
       attendanceData: {
         date: attendanceDate,
         classSection: selectedClass,
-        attendance
+        attendance,
+        reason: isEditing ? editReason : null
       }
-    }));
+    })).then(() => {
+      setShowReasonModal(false);
+      setEditReason("");
+      // Refresh to confirm state
+      dispatch(getAttendance({ teacherId, date: attendanceDate, classSection: selectedClass }))
+        .unwrap()
+        .then(data => {
+          setExistingAttendance(data || []);
+          setIsEditing(data && data.length > 0);
+        });
+    });
   };
 
   // --- HELPER FUNCTIONS ---
@@ -129,7 +215,7 @@ const AttendanceView = ({ students, selectedClass, teacherId, loadings }) => {
     <div className="space-y-6">
 
       {/* Tabs */}
-      <div className="flex space-x-4 border-b border-gray-200 overflow-x-auto">
+      <div className="flex space-x-4 border-b border-gray-200 overflow-x-auto hide-scrollbar pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
         <button
           onClick={() => setActiveTab('mark')}
           className={`pb-2 px-4 flex items-center gap-2 font-medium white-space-nowrap transition-colors ${activeTab === 'mark'
@@ -162,9 +248,8 @@ const AttendanceView = ({ students, selectedClass, teacherId, loadings }) => {
         </button>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div className="bg-white sm:rounded-xl sm:shadow-sm sm:border sm:border-gray-200 p-4 sm:p-6 -mx-4 sm:mx-0">
 
-        {/* --- 1. MARK ATTENDANCE VIEW --- */}
         {activeTab === 'mark' && (
           <>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -176,9 +261,72 @@ const AttendanceView = ({ students, selectedClass, teacherId, loadings }) => {
                 type="date"
                 value={attendanceDate}
                 onChange={(e) => setAttendanceDate(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                className="w-full sm:w-auto px-4 py-2 sm:py-2 bg-gray-50 border-none sm:border-solid sm:border-gray-300 rounded-lg sm:focus:ring-2 focus:outline-none text-gray-700 font-medium"
               />
             </div>
+
+            {/* Backlog Status Banners */}
+            {!backlogStatus.allowed && (
+              <div className="mb-4 bg-red-50 border-l-4 border-red-400 p-4 rounded-r shadow-sm">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <AlertCircle className="h-5 w-5 text-red-400" aria-hidden="true" />
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-red-700">
+                      <strong>Attendance marking blocked:</strong> {backlogStatus.reason}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {backlogStatus.allowed && backlogStatus.backlog && (
+              <div className="mb-4 bg-green-50 border-l-4 border-green-400 p-4 rounded-r shadow-sm">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <CheckSquare className="h-5 w-5 text-green-400" aria-hidden="true" />
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-green-700">
+                      <strong>Backlog window open:</strong> {backlogStatus.reason}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Status Banners */}
+            {isEditing && !isPastDate() && (
+              <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r shadow-sm">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <AlertCircle className="h-5 w-5 text-yellow-400" aria-hidden="true" />
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-yellow-700">
+                      Attendance for this date has already been marked. You are in <strong>search/edit mode</strong>.
+                      Changes will require a reason.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {isEditing && isPastDate() && backlogStatus.allowed && (
+              <div className="mb-4 bg-red-50 border-l-4 border-red-400 p-4 rounded-r shadow-sm">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <AlertCircle className="h-5 w-5 text-red-400" aria-hidden="true" />
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-red-700">
+                      This is a past record. <strong>Editing is disabled</strong> for past attendance.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {loading ? (
               <div className="flex items-center justify-center p-12">
@@ -191,19 +339,19 @@ const AttendanceView = ({ students, selectedClass, teacherId, loadings }) => {
                     students.map((student) => {
                       const leaveInfo = getLeaveStatus(student.admission_no);
                       return (
-                        <div key={student.admission_no} className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-lg gap-4 ${leaveInfo ? 'bg-orange-50 border-orange-200' : 'border-gray-200'}`}>
+                        <div key={student.admission_no} className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-lg gap-4 ${leaveInfo ? 'bg-orange-50 border-orange-200' : 'border-gray-200'} ${(isEditing && isPastDate()) ? 'opacity-75' : ''}`}>
                           <div>
-                            <p className="font-medium text-gray-900">
+                            <p className="font-semibold text-gray-900 text-[15px]">
                               {student.academic?.roll_no ? `${student.academic.roll_no}. ` : student.roll_no ? `${student.roll_no}. ` : ""}
                               {getStudentName(student.admission_no)}
                             </p>
-                            <div className="flex items-center gap-2">
-                              <p className="text-xs text-indigo-600 font-bold uppercase tracking-tight bg-indigo-50 px-1.5 rounded border border-indigo-100 italic">
+                            <div className="flex items-center gap-2 mt-1">
+                              <p className="text-[10px] text-indigo-600 font-bold uppercase tracking-wider bg-indigo-50/50 px-1.5 py-0.5 rounded border border-indigo-100/50">
                                 Class {student.academic?.current_class || "-"}{student.academic?.section && `-${student.academic.section}`}
                               </p>
-                              <p className="text-sm text-gray-600">{student.admission_no}</p>
+                              <p className="text-[11px] font-medium text-gray-400">{student.admission_no}</p>
                               {leaveInfo && (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-800 tracking-wider">
                                   ON LEAVE
                                 </span>
                               )}
@@ -215,12 +363,14 @@ const AttendanceView = ({ students, selectedClass, teacherId, loadings }) => {
                               <button
                                 key={status}
                                 onClick={() => handleAttendanceChange(student.admission_no, status)}
-                                className={`flex-1 sm:flex-none px-4 py-2 rounded-lg font-medium transition-all ${attendanceData[student.admission_no] === status
-                                  ? status === 'Present' ? 'bg-green-500 text-white shadow-md'
-                                    : status === 'Absent' ? 'bg-red-500 text-white shadow-md'
-                                      : 'bg-yellow-500 text-white shadow-md'
-                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                  }`}
+                                // Disable selection if it's a past date and we are editing
+                                disabled={isEditing && isPastDate()}
+                                className={`flex-1 sm:flex-none px-2 py-2 sm:px-4 sm:py-2 text-xs sm:text-sm font-semibold rounded-lg sm:transition-all active:scale-95 ${attendanceData[student.admission_no] === status
+                                  ? status === 'Present' ? 'bg-green-500 text-white shadow-sm'
+                                    : status === 'Absent' ? 'bg-red-500 text-white shadow-sm'
+                                      : 'bg-yellow-500 text-white shadow-sm'
+                                  : 'bg-gray-50 text-gray-500 hover:bg-gray-100 border border-transparent'
+                                  } ${(isEditing && isPastDate()) ? 'cursor-not-allowed' : ''}`}
                               >
                                 {status}
                               </button>
@@ -236,11 +386,14 @@ const AttendanceView = ({ students, selectedClass, teacherId, loadings }) => {
 
                 {students && students.length > 0 && (
                   <button
-                    onClick={submitAttendance}
-                    disabled={loading}
-                    className="mt-6 w-full bg-indigo-600 text-white py-3 rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 shadow-md transition-colors"
+                    onClick={initiateSubmit}
+                    disabled={loading || (isEditing && isPastDate()) || !backlogStatus.allowed || checkingBacklog}
+                    className={`mt-6 w-full py-3 rounded-lg font-medium shadow-md transition-colors ${((isEditing && isPastDate()) || !backlogStatus.allowed || checkingBacklog)
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                      }`}
                   >
-                    {loading ? 'Submitting...' : 'Submit Attendance'}
+                    {loading ? 'Processing...' : checkingBacklog ? 'Checking...' : isEditing ? 'Update Attendance' : 'Submit Attendance'}
                   </button>
                 )}
               </>
@@ -248,6 +401,40 @@ const AttendanceView = ({ students, selectedClass, teacherId, loadings }) => {
           </>
         )}
 
+        {/* Reason Modal */}
+        {showReasonModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in duration-200">
+              <h3 className="text-lg font-bold text-gray-900 border-b pb-2">Reason for Modification</h3>
+              <p className="text-sm text-gray-600">
+                You are modifying an existing attendance record. Please provide a reason for this change (e.g., "Correction", "Medical Certificate Received").
+              </p>
+              <textarea
+                value={editReason}
+                onChange={(e) => setEditReason(e.target.value)}
+                placeholder="Enter reason here..."
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 h-24 resize-none"
+                autoFocus
+              />
+              <div className="flex gap-3 justify-end pt-2">
+                <button
+                  onClick={() => setShowReasonModal(false)}
+                  className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={submitAttendance}
+                  disabled={!editReason.trim()}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Confirm Update
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+        }
         {/* --- 2. HISTORY VIEW (NEW) --- */}
         {activeTab === 'history' && (
           <>
@@ -256,12 +443,37 @@ const AttendanceView = ({ students, selectedClass, teacherId, loadings }) => {
                 <h3 className="text-lg font-semibold text-gray-900">Attendance History</h3>
                 <p className="text-sm text-gray-500">View past attendance records.</p>
               </div>
-              <input
-                type="date"
-                value={historyDate}
-                onChange={(e) => setHistoryDate(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
+              <div className="flex items-center gap-2">
+                {(() => {
+                  const d = new Date(historyDate);
+                  const today = new Date();
+                  d.setHours(0, 0, 0, 0);
+                  today.setHours(0, 0, 0, 0);
+                  const isEditable = d >= today;
+
+                  if (isEditable) {
+                    return (
+                      <button
+                        onClick={() => {
+                          setAttendanceDate(historyDate);
+                          setActiveTab('mark');
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors font-medium text-sm"
+                      >
+                        <CheckSquare size={16} />
+                        Edit Attendance
+                      </button>
+                    );
+                  }
+                  return null;
+                })()}
+                <input
+                  type="date"
+                  value={historyDate}
+                  onChange={(e) => setHistoryDate(e.target.value)}
+                  className="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+              </div>
             </div>
 
             {loading ? (
@@ -269,30 +481,46 @@ const AttendanceView = ({ students, selectedClass, teacherId, loadings }) => {
                 <Loader className="animate-spin text-indigo-600" size={32} />
               </div>
             ) : (
-              <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <div className="border border-gray-100 sm:border-gray-200 rounded-xl overflow-hidden bg-gray-50/50 sm:bg-white">
                 {attendance && attendance.length > 0 ? (
-                  <table className="w-full text-left">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        <th className="p-4 font-semibold text-gray-600">Roll No</th>
-                        <th className="p-4 font-semibold text-gray-600">Student Name</th>
-                        <th className="p-4 font-semibold text-gray-600">Status</th>
-                        <th className="p-4 font-semibold text-gray-600">Marked By</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
+                  <div className="flex flex-col sm:block">
+                    {/* Desktop Table Header */}
+                    <div className="hidden sm:grid grid-cols-4 bg-gray-50 border-b border-gray-200 p-4 font-semibold text-gray-600">
+                      <div>Roll No</div>
+                      <div>Student Name</div>
+                      <div>Status</div>
+                      <div>Marked By</div>
+                    </div>
+                    {/* List Items */}
+                    <div className="divide-y divide-gray-100/60 sm:divide-gray-100">
                       {students.map(student => {
-                        // Find status for this student in fetched attendance
                         const record = attendance.find(a => a.admission_no === student.admission_no);
                         const status = record ? record.status : 'Not Marked';
 
                         return (
-                          <tr key={student.admission_no} className="hover:bg-gray-50">
-                            <td className="p-4 text-gray-600">{student.roll_no}</td>
-                            <td className="p-4 font-medium text-gray-900">
-                              {getStudentName(student.admission_no)}
-                            </td>
-                            <td className="p-4">
+                          <div key={student.admission_no} className="flex flex-col sm:grid sm:grid-cols-4 sm:items-center p-4 bg-white hover:bg-gray-50/80 transition-colors">
+                            {/* Mobile specific layout */}
+                            <div className="flex justify-between items-start sm:hidden mb-2">
+                              <div>
+                                <span className="text-xs font-bold text-gray-400">#{student.roll_no}</span>
+                                <p className="font-semibold text-gray-900 text-[15px]">{getStudentName(student.admission_no)}</p>
+                              </div>
+                              <span className={`px-2 py-1 rounded-md text-[11px] font-bold tracking-wide uppercase ${status === 'Present' ? 'bg-green-100 text-green-700' :
+                                status === 'Absent' ? 'bg-red-100 text-red-700' :
+                                  status === 'Late' ? 'bg-yellow-100 text-yellow-700' :
+                                    'bg-gray-100 text-gray-600'
+                                }`}>
+                                {status}
+                              </span>
+                            </div>
+                            <div className="sm:hidden text-xs text-gray-500">
+                              Marked by: {record ? record.marked_by_name || 'Teacher' : '-'}
+                            </div>
+
+                            {/* Desktop specific layout */}
+                            <div className="hidden sm:block text-gray-600">{student.roll_no}</div>
+                            <div className="hidden sm:block font-medium text-gray-900">{getStudentName(student.admission_no)}</div>
+                            <div className="hidden sm:block">
                               <span className={`px-2 py-1 rounded text-sm font-medium ${status === 'Present' ? 'bg-green-100 text-green-700' :
                                 status === 'Absent' ? 'bg-red-100 text-red-700' :
                                   status === 'Late' ? 'bg-yellow-100 text-yellow-700' :
@@ -300,15 +528,15 @@ const AttendanceView = ({ students, selectedClass, teacherId, loadings }) => {
                                 }`}>
                                 {status}
                               </span>
-                            </td>
-                            <td className="p-4 text-sm text-gray-500">
+                            </div>
+                            <div className="hidden sm:block text-sm text-gray-500">
                               {record ? record.marked_by_name || 'Teacher' : '-'}
-                            </td>
-                          </tr>
+                            </div>
+                          </div>
                         );
                       })}
-                    </tbody>
-                  </table>
+                    </div>
+                  </div>
                 ) : (
                   <div className="p-8 text-center text-gray-500 flex flex-col items-center gap-2">
                     <Clock size={32} className="text-gray-300" />
@@ -334,7 +562,7 @@ const AttendanceView = ({ students, selectedClass, teacherId, loadings }) => {
                           `Custom: ${customRange.startDate} to ${customRange.endDate}`}
                 </span></p>
               </div>
-              <div className="flex flex-wrap items-center gap-2 bg-gray-50 p-1.5 rounded-lg border border-gray-200">
+              <div className="flex sm:flex-wrap overflow-x-auto hide-scrollbar items-center gap-2 bg-gray-50 p-2 rounded-lg border border-gray-200 w-full sm:w-auto mt-2 sm:mt-0">
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-2">Range Type:</span>
                 <select
                   value={summaryRange}

@@ -70,6 +70,8 @@ router.get("/:studentId/teachers", async (req, res) => {
   }
 });
 
+import upload from "../middleware/upload.js";
+
 /**
  * GET Homework Assigned to Student (by class + section)
  * This one works because homework IS in a separate collection
@@ -90,7 +92,57 @@ router.get("/:studentId/homework", async (req, res) => {
       .sort({ assigned_date: -1 })
       .toArray();
 
-    res.json(homework);
+    // Check submission status for each
+    // This is optional optimization: user might want to know if they submitted
+    const homeworkIds = homework.map(h => h._id);
+    const submissions = await db.collection("homework_submissions").find({
+      student_id: student._id,
+      homework_id: { $in: homeworkIds }
+    }).toArray();
+
+    const result = homework.map(hw => {
+      const sub = submissions.find(s => s.homework_id.toString() === hw._id.toString());
+      return { ...hw, submission: sub || null };
+    });
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+/**
+ * POST Submit Homework
+ */
+router.post("/:studentId/homework/:homeworkId/submit", upload.single('attachment'), async (req, res) => {
+  try {
+    const db = getDB(req);
+    const { note } = req.body;
+    const studentId = req.params.studentId;
+    const homeworkId = req.params.homeworkId;
+
+    const student = await getStudent(db, studentId);
+    if (!student) return res.status(404).json({ message: "Student not found" });
+
+    const submission = {
+      homework_id: new ObjectId(homeworkId),
+      student_id: student._id,
+      student_name: `${student.personal_details.first_name} ${student.personal_details.last_name || ""}`.trim(),
+      admission_no: student.admission_no,
+      submitted_at: new Date(),
+      note,
+      attachment: req.file ? `/uploads/${req.file.filename}` : null,
+      attachment_original_name: req.file ? req.file.originalname : null,
+      status: "Submitted" // Submitted, Checked
+    };
+
+    await db.collection("homework_submissions").updateOne(
+      { homework_id: new ObjectId(homeworkId), student_id: student._id },
+      { $set: submission },
+      { upsert: true }
+    );
+
+    res.json({ message: "Homework submitted successfully" });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -190,17 +242,26 @@ router.get("/:studentId/timetable", async (req, res) => {
       return res.status(404).json({ message: "Student not found" });
     }
 
-    const record = await db.collection("time_table").findOne({
-      "0.class": student.academic?.current_class || student.class,
-      "0.section": student.academic?.section || student.section,
+    // New Schema Fetch
+    const record = await db.collection("timetables").findOne({
+      class: String(student.academic?.current_class || student.class),
+      section: student.academic?.section || student.section,
     });
 
     if (!record) {
-      return res.json({ message: "Timetable not present" });
+      // Fallback to old schema if needed, or just return empty
+      const oldRecord = await db.collection("time_table").findOne({
+        "0.class": student.academic?.current_class || student.class,
+        "0.section": student.academic?.section || student.section,
+      });
+
+      if (oldRecord) return res.json(oldRecord["0"].timetable);
+
+      return res.json(null);
     }
 
     // send only timetable object
-    res.json(record["0"].timetable);
+    res.json(record.timetable);
 
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -242,7 +303,7 @@ router.get("/:studentId/announcements", async (req, res) => {
 
 // @route   POST /api/student/:studentId/leave
 // @desc    Apply for leave
-router.post("/:studentId/leave", async (req, res) => {
+router.post("/:studentId/leave", upload.single('attachment'), async (req, res) => {
   try {
     const db = getDB(req);
     const { from_date, to_date, reason, type } = req.body;
@@ -257,12 +318,12 @@ router.post("/:studentId/leave", async (req, res) => {
       student_name: `${student.personal_details.first_name} ${student.personal_details.last_name}`,
       class: student.academic?.current_class || student.class,
       section: student.academic?.section || student.section,
-
       from_date: new Date(from_date),
       to_date: new Date(to_date),
       reason,
       type: type || "General",
-
+      attachment: req.file ? `/uploads/${req.file.filename}` : null,
+      attachment_original_name: req.file ? req.file.originalname : null,
       status: "Pending", // Pending, Approved, Rejected
       request_date: new Date()
     };

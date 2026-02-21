@@ -22,13 +22,13 @@ const TeachersManagementView = ({
     return (
         <div className="space-y-6">
             {/* Header Actions */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center justify-between">
-                    <div className="relative flex-1 max-w-md">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                    <div className="relative flex-1 w-full max-w-md">
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                         <input
                             type="text"
-                            placeholder="Search teachers by ID, name, or email..."
+                            placeholder="Search teachers..."
                             value={searchTerm}
                             onChange={handleSearch}
                             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -37,7 +37,7 @@ const TeachersManagementView = ({
 
                     <button
                         onClick={onAdd}
-                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                        className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
                     >
                         <Plus size={20} />
                         Add Teacher
@@ -45,7 +45,7 @@ const TeachersManagementView = ({
                 </div>
             </div>
 
-            {/* Teachers Table */}
+            {/* Teachers List */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 {loading ? (
                     <div className="flex items-center justify-center p-12">
@@ -53,7 +53,61 @@ const TeachersManagementView = ({
                     </div>
                 ) : (
                     <>
-                        <div className="overflow-x-auto">
+                        {/* Mobile Cards View */}
+                        <div className="md:hidden divide-y divide-gray-100">
+                            {teachers && teachers.length > 0 ? (
+                                teachers.map((teacher) => (
+                                    <div key={teacher.teacher_id} className="p-4 space-y-3">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <h3 className="font-medium text-gray-900">
+                                                    {teacher.personal_details?.name || 'N/A'}
+                                                </h3>
+                                                <p className="text-sm text-gray-500">{teacher.teacher_id}</p>
+                                            </div>
+                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                                                {teacher.assigned_classes?.length || 0} Classes
+                                            </span>
+                                        </div>
+                                        <div className="text-sm text-gray-600">
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <span className="text-gray-400">✉</span> {teacher.personal_details?.email || 'N/A'}
+                                            </div>
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <span className="text-gray-400">☎</span> {teacher.personal_details?.phone || 'N/A'}
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2 pt-2">
+                                            <button
+                                                onClick={() => onView(teacher)}
+                                                className="flex-1 py-2 px-3 text-sm text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors text-center font-medium"
+                                            >
+                                                View
+                                            </button>
+                                            <button
+                                                onClick={() => onEdit(teacher)}
+                                                className="flex-1 py-2 px-3 text-sm text-green-600 bg-green-50 rounded-lg hover:bg-green-100 transition-colors text-center font-medium"
+                                            >
+                                                Edit
+                                            </button>
+                                            <button
+                                                onClick={() => onDelete(teacher)}
+                                                className="flex-1 py-2 px-3 text-sm text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors text-center font-medium"
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="p-8 text-center text-gray-500">
+                                    No teachers found
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Desktop Table View */}
+                        <div className="hidden md:block overflow-x-auto">
                             <table className="w-full">
                                 <thead className="bg-gray-50">
                                     <tr>
@@ -124,24 +178,24 @@ const TeachersManagementView = ({
 
                         {/* Pagination */}
                         {pagination && pagination.pages > 1 && (
-                            <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-                                <div className="text-sm text-gray-600">
+                            <div className="px-4 sm:px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+                                <div className="text-sm text-gray-600 text-center sm:text-left">
                                     Showing {((pagination.page - 1) * pagination.limit) + 1} to{' '}
                                     {Math.min(pagination.page * pagination.limit, pagination.total)} of{' '}
                                     {pagination.total} teachers
                                 </div>
-                                <div className="flex gap-2">
+                                <div className="flex gap-2 w-full sm:w-auto">
                                     <button
                                         onClick={() => onPageChange(pagination.page - 1)}
                                         disabled={pagination.page === 1}
-                                        className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="flex-1 sm:flex-none px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                         Previous
                                     </button>
                                     <button
                                         onClick={() => onPageChange(pagination.page + 1)}
                                         disabled={pagination.page === pagination.pages}
-                                        className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="flex-1 sm:flex-none px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                         Next
                                     </button>

@@ -1,5 +1,6 @@
 import express from "express";
 import { ObjectId } from "mongodb";
+import { updateStudentAnalytics } from "../utils/updateStudentAnalytics.js";
 
 const router = express.Router();
 const getDB = (req) => req.app.locals.db;
@@ -7,20 +8,29 @@ const getDB = (req) => req.app.locals.db;
 // ========== MARKING SCHEME ROUTES ==========
 
 // @route   GET /api/teacher/:teacherId/marking-scheme/:class
-// @desc    Get marking scheme for a class
+// @desc    Get active marking scheme for a class/section
 router.get("/:teacherId/marking-scheme/:class", async (req, res) => {
   try {
     const db = getDB(req);
     const academicYear = req.query.year || "2024-25";
+    const section = req.query.section || "A";
+    const className = req.params.class;
 
+    // Find active marking scheme that applies to this class/section
     const scheme = await db.collection("marking_schemes").findOne({
-      class: req.params.class,
-      academic_year: academicYear
+      academic_year: academicYear,
+      status: "Active",
+      $or: [
+        { "applicable_to.classes": className, "applicable_to.sections": section },
+        { "applicable_to.classes": className, "applicable_to.sections": "All" },
+        { "applicable_to.classes": "All", "applicable_to.sections": section },
+        { "applicable_to.classes": "All", "applicable_to.sections": "All" }
+      ]
     });
 
     if (!scheme) {
       return res.status(404).json({
-        message: "Marking scheme not found for this class"
+        message: "No active marking scheme found for this class/section"
       });
     }
 
@@ -67,15 +77,21 @@ router.post("/:teacherId/results/upload", async (req, res) => {
       });
     }
 
-    // Get marking scheme
+    // Get active marking scheme for this class/section
     const scheme = await db.collection("marking_schemes").findOne({
-      class: className,
-      academic_year: academic_year || "2024-25"
+      academic_year: academic_year || "2024-25",
+      status: "Active",
+      $or: [
+        { "applicable_to.classes": className, "applicable_to.sections": section },
+        { "applicable_to.classes": className, "applicable_to.sections": "All" },
+        { "applicable_to.classes": "All", "applicable_to.sections": section },
+        { "applicable_to.classes": "All", "applicable_to.sections": "All" }
+      ]
     });
 
     if (!scheme) {
       return res.status(404).json({
-        message: "Marking scheme not found"
+        message: "No active marking scheme found for this class/section"
       });
     }
 
@@ -263,10 +279,16 @@ router.put("/:teacherId/results/:resultId", async (req, res) => {
       return res.status(404).json({ message: "Result not found" });
     }
 
-    // Get marking scheme for recalculation
+    // Get active marking scheme for recalculation
     const scheme = await db.collection("marking_schemes").findOne({
-      class: result.class,
-      academic_year: result.academic_year
+      academic_year: result.academic_year,
+      status: "Active",
+      $or: [
+        { "applicable_to.classes": result.class, "applicable_to.sections": result.section },
+        { "applicable_to.classes": result.class, "applicable_to.sections": "All" },
+        { "applicable_to.classes": "All", "applicable_to.sections": result.section },
+        { "applicable_to.classes": "All", "applicable_to.sections": "All" }
+      ]
     });
 
     // Recalculate totals
@@ -551,154 +573,36 @@ router.get("/:teacherId/results/stats/class-comparison", async (req, res) => {
   }
 });
 
-// ========== HELPER FUNCTIONS ==========
+// ========== ANALYTICS MANAGEMENT ==========
 
-// Update student analytics (runs asynchronously)
-async function updateStudentAnalytics(db, admissionNos, academicYear) {
+// @route   POST /api/teacher/:teacherId/results/regenerate-analytics
+// @desc    Manually regenerate analytics for students (useful for debugging)
+router.post("/:teacherId/results/regenerate-analytics", async (req, res) => {
   try {
-    for (const admissionNo of admissionNos) {
-      const results = await db.collection("results").find({
-        admission_no: admissionNo,
-        academic_year: academicYear,
-        is_published: true
-      }).toArray();
+    const db = getDB(req);
+    const { admission_nos, academic_year } = req.body;
+    const year = academic_year || "2024-25";
 
-      if (results.length === 0) continue;
-
-      // Calculate overall performance
-      const totalPercentage = results.reduce((sum, r) => sum + r.percentage, 0);
-      const avgPercentage = totalPercentage / results.length;
-
-      // Get unique exams
-      const uniqueExams = [...new Set(results.map(r => r.exam_id))];
-
-      // Calculate subject-wise performance
-      const subjectMap = {};
-      results.forEach(result => {
-        if (!subjectMap[result.subject]) {
-          subjectMap[result.subject] = {
-            subject: result.subject,
-            exams: [],
-            total_percentage: 0,
-            count: 0
-          };
-        }
-
-        subjectMap[result.subject].exams.push({
-          exam_id: result.exam_id,
-          percentage: result.percentage,
-          grade: result.grade,
-          total_obtained: result.total_obtained,
-          total_max: result.total_max
-        });
-
-        subjectMap[result.subject].total_percentage += result.percentage;
-        subjectMap[result.subject].count++;
+    if (!admission_nos || !Array.isArray(admission_nos)) {
+      return res.status(400).json({
+        message: "admission_nos array is required"
       });
-
-      const subjects = Object.values(subjectMap).map(sub => {
-        const percentages = sub.exams.map(e => e.percentage);
-        return {
-          subject: sub.subject,
-          exams: sub.exams,
-          average_percentage: parseFloat((sub.total_percentage / sub.count).toFixed(2)),
-          highest: Math.max(...percentages),
-          lowest: Math.min(...percentages),
-          trend: calculateTrend(percentages)
-        };
-      });
-
-      // Calculate exam-wise performance
-      const examMap = {};
-      results.forEach(result => {
-        if (!examMap[result.exam_id]) {
-          examMap[result.exam_id] = {
-            exam_id: result.exam_id,
-            subjects: [],
-            total_percentage: 0,
-            total_obtained: 0,
-            total_max: 0,
-            count: 0
-          };
-        }
-
-        examMap[result.exam_id].subjects.push({
-          subject: result.subject,
-          percentage: result.percentage,
-          grade: result.grade
-        });
-
-        examMap[result.exam_id].total_percentage += result.percentage;
-        examMap[result.exam_id].total_obtained += result.total_obtained;
-        examMap[result.exam_id].total_max += result.total_max;
-        examMap[result.exam_id].count++;
-      });
-
-      const exams = Object.values(examMap).map(exam => ({
-        exam_id: exam.exam_id,
-        total_percentage: parseFloat((exam.total_percentage / exam.count).toFixed(2)),
-        subjects_appeared: exam.count,
-        subjects_passed: exam.subjects.filter(s => s.grade !== 'F').length,
-        aggregate_percentage: parseFloat(((exam.total_obtained / exam.total_max) * 100).toFixed(2))
-      }));
-
-      // Get student's grade
-      const scheme = await db.collection("marking_schemes").findOne({
-        academic_year: academicYear
-      });
-
-      let overallGrade = "N/A";
-      if (scheme) {
-        const gradeInfo = scheme.grading.grades.find(
-          g => avgPercentage >= g.min && avgPercentage <= g.max
-        );
-        overallGrade = gradeInfo ? gradeInfo.grade : "N/A";
-      }
-
-      // Update or insert analytics
-      await db.collection("student_analytics").updateOne(
-        {
-          admission_no: admissionNo,
-          academic_year: academicYear
-        },
-        {
-          $set: {
-            overall: {
-              total_exams: uniqueExams.length,
-              average_percentage: parseFloat(avgPercentage.toFixed(2)),
-              average_grade: overallGrade,
-              total_subjects: Object.keys(subjectMap).length
-            },
-            subjects: subjects,
-            exams: exams,
-            last_updated: new Date()
-          }
-        },
-        { upsert: true }
-      );
     }
+
+    console.log(`Regenerating analytics for ${admission_nos.length} students`);
+
+    // Call the analytics update function with await to catch errors
+    await updateStudentAnalytics(db, admission_nos, year);
+
+    res.json({
+      message: "Analytics regenerated successfully",
+      students: admission_nos.length,
+      academic_year: year
+    });
   } catch (error) {
-    console.error("Error updating analytics:", error);
+    console.error("Error regenerating analytics:", error);
+    res.status(500).json({ message: error.message });
   }
-}
-
-function calculateTrend(percentages) {
-  if (percentages.length < 2) return "stable";
-
-  const recent = percentages.slice(-3);
-  if (recent.length < 2) return "stable";
-
-  let increasing = 0;
-  let decreasing = 0;
-
-  for (let i = 1; i < recent.length; i++) {
-    if (recent[i] > recent[i - 1]) increasing++;
-    else if (recent[i] < recent[i - 1]) decreasing++;
-  }
-
-  if (increasing > decreasing) return "improving";
-  if (decreasing > increasing) return "declining";
-  return "stable";
-}
+});
 
 export default router;

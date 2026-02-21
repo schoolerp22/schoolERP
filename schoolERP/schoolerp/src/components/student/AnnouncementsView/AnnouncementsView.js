@@ -41,9 +41,8 @@ const AnnouncementsView = ({ announcements }) => {
             </div>
 
             <span
-              className={`text-xs px-3 py-1 rounded-full border font-medium ${
-                priorityStyles[a.priority] || priorityStyles.Normal
-              }`}
+              className={`text-xs px-3 py-1 rounded-full border font-medium ${priorityStyles[a.priority] || priorityStyles.Normal
+                }`}
             >
               {a.priority}
             </span>
@@ -51,6 +50,21 @@ const AnnouncementsView = ({ announcements }) => {
 
           {/* Message */}
           <p className="text-gray-700 mb-3">{a.message}</p>
+
+          {/* Attachment */}
+          {a.attachment && (
+            <div className="mb-3">
+              <a
+                href={`${process.env.REACT_APP_API_URL}${a.attachment}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-xs font-medium text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 transition"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
+                Download Attachment
+              </a>
+            </div>
+          )}
 
           {/* Footer */}
           <div className="flex items-center gap-2 text-xs text-gray-400">

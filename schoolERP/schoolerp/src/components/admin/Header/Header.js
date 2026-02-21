@@ -11,13 +11,13 @@ const Header = ({ currentView }) => {
     };
 
     return (
-        <header className="bg-white border-b border-gray-200 px-6 py-4">
+        <header className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sm:py-4 sticky top-0 z-30">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-900">
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">
                         {viewTitles[currentView] || 'Admin Dashboard'}
                     </h2>
-                    <p className="text-sm text-gray-600 mt-1">
+                    <p className="text-xs sm:text-sm text-gray-600 mt-0.5 sm:mt-1">
                         School Administration Panel
                     </p>
                 </div>

@@ -6,7 +6,7 @@ import {
     getStudentLeaves
 } from "../../../feature/students/studentSlice";
 import LeaveHistory from "./LeaveHistory";
-import {  Calendar, User, FileText, CheckCircle,  AlertCircle } from "lucide-react";
+import { Calendar, User, FileText, CheckCircle, AlertCircle } from "lucide-react";
 import { toast } from "react-toastify";
 
 const LeaveApplication = () => {
@@ -24,6 +24,7 @@ const LeaveApplication = () => {
         reason: "",
         target_teacher_id: ""
     });
+    const [attachment, setAttachment] = useState(null);
 
     // Fetch teachers on mount - Optimized to prevent infinite loops
     useEffect(() => {
@@ -45,6 +46,7 @@ const LeaveApplication = () => {
                 reason: "",
                 target_teacher_id: ""
             });
+            setAttachment(null);
             setActiveTab("history"); // Auto switch to history
         }
     }, [leaveSuccess, dispatch, profile?.admission_no]);
@@ -58,6 +60,10 @@ const LeaveApplication = () => {
 
     const handleChange = (e) => {
         setLeaveData({ ...leaveData, [e.target.name]: e.target.value });
+    };
+
+    const handleFileChange = (e) => {
+        setAttachment(e.target.files[0]);
     };
 
     const handleSubmit = (e) => {
@@ -77,9 +83,15 @@ const LeaveApplication = () => {
             to_date: leaveData.type === "One Day" ? leaveData.from_date : leaveData.to_date
         };
 
+        const formData = new FormData();
+        Object.keys(payload).forEach(key => formData.append(key, payload[key]));
+        if (attachment) {
+            formData.append("attachment", attachment);
+        }
+
         dispatch(applyForLeave({
             studentId: profile.admission_no,
-            leaveData: payload
+            leaveData: formData
         }));
     };
 
@@ -114,7 +126,7 @@ const LeaveApplication = () => {
                 </div>
 
                 {activeTab === "apply" ? (
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-8">
                         <form onSubmit={handleSubmit} className="space-y-6">
                             {/* ... existing form fields ... */}
 
@@ -219,6 +231,19 @@ const LeaveApplication = () => {
                                     placeholder="Please explain why you need to take leave..."
                                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                                 />
+                            </div>
+
+                            {/* 5. Attachment */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Attachment
+                                </label>
+                                <input
+                                    type="file"
+                                    onChange={handleFileChange}
+                                    className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">Upload supporting documents if any (e.g. Medical Certificate).</p>
                             </div>
 
                             {/* Submit Button */}

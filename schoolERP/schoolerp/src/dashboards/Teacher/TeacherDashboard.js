@@ -5,11 +5,13 @@ import { Loader } from 'lucide-react';
 import Sidebar from '../../components/teacher/Sidebar/Sidebar';
 import Header from '../../components/teacher/Header/Header';
 import DashboardView from '../../components/teacher/DashboardView/DashboardView';
+import { Home, Users as UsersIcon, Calendar as CalendarIcon, Menu as MenuIcon } from 'lucide-react';
 import StudentsView from '../../components/teacher/StudentsView/StudentsView';
 import AttendanceView from '../../components/teacher/AttendanceView/AttendanceView';
 import HomeworkView from '../../components/teacher/HomeworkView/HomeworkView';
 import AnnouncementsView from '../../components/teacher/AnnouncementsView/AnnouncementsView';
 import LeaveApproval from '../../components/teacher/LeaveApproval/LeaveApproval';
+import TimetableManagement from '../../components/teacher/TimetableManagement/TimetableManagement';
 //Import Results Components
 import ResultsUpload from '../../components/teacher/ResultsUpload/ResultsUpload';
 import TeacherPerformanceDashboard from '../../components/teacher/TeacherPerformanceDashboard/TeacherPerformanceDashboard';
@@ -43,7 +45,7 @@ const TeacherDashboard = () => {
   } = useSelector((state) => state.teacher);
 
   const [currentView, setCurrentView] = useState('dashboard');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false); // Default false for mobile first, can adjust based on screen size later
   const [selectedClass, setSelectedClass] = useState('');
 
   const teacherId = user?.teacher_id;
@@ -166,6 +168,13 @@ const TeacherDashboard = () => {
             teacherId={teacherId}
           />
         );
+      case 'timetable':
+        return (
+          <TimetableManagement
+            teacherId={teacherId}
+            selectedClass={selectedClass}
+          />
+        );
       default:
         return (
           <DashboardView
@@ -206,9 +215,41 @@ const TeacherDashboard = () => {
           leaveRequests={leaveRequests}
         />
 
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-6">
           {renderView()}
         </main>
+      </div>
+
+      {/* Mobile Bottom Navigation Bar */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40 flex justify-around items-center py-2 px-2 safe-area-pb">
+        <button
+          onClick={() => setCurrentView('dashboard')}
+          className={`flex flex-col items-center p-2 rounded-lg ${currentView === 'dashboard' ? 'text-indigo-600' : 'text-gray-500'}`}
+        >
+          <Home size={24} />
+          <span className="text-[10px] mt-1 font-medium">Home</span>
+        </button>
+        <button
+          onClick={() => setCurrentView('students')}
+          className={`flex flex-col items-center p-2 rounded-lg ${currentView === 'students' ? 'text-indigo-600' : 'text-gray-500'}`}
+        >
+          <UsersIcon size={24} />
+          <span className="text-[10px] mt-1 font-medium">Students</span>
+        </button>
+        <button
+          onClick={() => setCurrentView('attendance')}
+          className={`flex flex-col items-center p-2 rounded-lg ${currentView === 'attendance' ? 'text-indigo-600' : 'text-gray-500'}`}
+        >
+          <CalendarIcon size={24} />
+          <span className="text-[10px] mt-1 font-medium">Attendance</span>
+        </button>
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="flex flex-col items-center p-2 rounded-lg text-gray-500"
+        >
+          <MenuIcon size={24} />
+          <span className="text-[10px] mt-1 font-medium">Menu</span>
+        </button>
       </div>
     </div>
   );

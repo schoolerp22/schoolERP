@@ -2,111 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { LineChart, Line, BarChart, Bar, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TrendingUp, TrendingDown, Minus, Award, Book, Target } from 'lucide-react';
 
-export default function StudentResultsDashboard() {
-  const admissionNo = "STU001"; // Get from auth context
-  const [analytics, setAnalytics] = useState(null);
+export default function StudentResultsDashboard({ admissionNo, analytics, results, academicYear, setAcademicYear }) {
   const [selectedView, setSelectedView] = useState('overview');
   const [selectedSubject, setSelectedSubject] = useState(null);
 
-  useEffect(() => {
-    loadAnalytics();
-  }, []);
+  // We don't need internal state for analytics anymore, strictly use props
+  // If analytics prop is null, show loading
 
-  const loadAnalytics = () => {
-    // Simulated analytics data
-    const mockAnalytics = {
-      overall: {
-        total_exams: 3,
-        average_percentage: 85.5,
-        average_grade: 'A',
-        total_subjects: 6
-      },
-      subjects: [
-        {
-          subject: 'Mathematics',
-          exams: [
-            { exam_id: 'MID_TERM_1', percentage: 89.17, grade: 'A', total_obtained: 107, total_max: 120 },
-            { exam_id: 'TERM_1', percentage: 85.5, grade: 'A', total_obtained: 102, total_max: 120 },
-            { exam_id: 'TERM_2', percentage: 91.2, grade: 'A+', total_obtained: 109, total_max: 120 }
-          ],
-          average_percentage: 88.62,
-          highest: 91.2,
-          lowest: 85.5,
-          trend: 'improving'
-        },
-        {
-          subject: 'Physics',
-          exams: [
-            { exam_id: 'MID_TERM_1', percentage: 82.5, grade: 'A', total_obtained: 99, total_max: 120 },
-            { exam_id: 'TERM_1', percentage: 80.0, grade: 'B+', total_obtained: 96, total_max: 120 },
-            { exam_id: 'TERM_2', percentage: 84.17, grade: 'A', total_obtained: 101, total_max: 120 }
-          ],
-          average_percentage: 82.22,
-          highest: 84.17,
-          lowest: 80.0,
-          trend: 'improving'
-        },
-        {
-          subject: 'Chemistry',
-          exams: [
-            { exam_id: 'MID_TERM_1', percentage: 87.5, grade: 'A', total_obtained: 105, total_max: 120 },
-            { exam_id: 'TERM_1', percentage: 86.67, grade: 'A', total_obtained: 104, total_max: 120 },
-            { exam_id: 'TERM_2', percentage: 85.0, grade: 'A', total_obtained: 102, total_max: 120 }
-          ],
-          average_percentage: 86.39,
-          highest: 87.5,
-          lowest: 85.0,
-          trend: 'declining'
-        },
-        {
-          subject: 'Biology',
-          exams: [
-            { exam_id: 'MID_TERM_1', percentage: 90.0, grade: 'A+', total_obtained: 108, total_max: 120 },
-            { exam_id: 'TERM_1', percentage: 88.33, grade: 'A', total_obtained: 106, total_max: 120 },
-            { exam_id: 'TERM_2', percentage: 89.17, grade: 'A', total_obtained: 107, total_max: 120 }
-          ],
-          average_percentage: 89.17,
-          highest: 90.0,
-          lowest: 88.33,
-          trend: 'stable'
-        },
-        {
-          subject: 'English',
-          exams: [
-            { exam_id: 'MID_TERM_1', percentage: 78.33, grade: 'B+', total_obtained: 94, total_max: 120 },
-            { exam_id: 'TERM_1', percentage: 81.67, grade: 'A', total_obtained: 98, total_max: 120 },
-            { exam_id: 'TERM_2', percentage: 83.33, grade: 'A', total_obtained: 100, total_max: 120 }
-          ],
-          average_percentage: 81.11,
-          highest: 83.33,
-          lowest: 78.33,
-          trend: 'improving'
-        },
-        {
-          subject: 'Computer Science',
-          exams: [
-            { exam_id: 'MID_TERM_1', percentage: 92.5, grade: 'A+', total_obtained: 111, total_max: 120 },
-            { exam_id: 'TERM_1', percentage: 90.83, grade: 'A+', total_obtained: 109, total_max: 120 },
-            { exam_id: 'TERM_2', percentage: 93.33, grade: 'A+', total_obtained: 112, total_max: 120 }
-          ],
-          average_percentage: 92.22,
-          highest: 93.33,
-          lowest: 90.83,
-          trend: 'stable'
-        }
-      ],
-      exams: [
-        { exam_id: 'MID_TERM_1', total_percentage: 86.67, subjects_appeared: 6, subjects_passed: 6 },
-        { exam_id: 'TERM_1', total_percentage: 85.5, subjects_appeared: 6, subjects_passed: 6 },
-        { exam_id: 'TERM_2', total_percentage: 87.7, subjects_appeared: 6, subjects_passed: 6 }
-      ]
-    };
-
-    setAnalytics(mockAnalytics);
-  };
 
   const getTrendIcon = (trend) => {
-    switch(trend) {
+    switch (trend) {
       case 'improving': return <TrendingUp className="text-green-600" size={20} />;
       case 'declining': return <TrendingDown className="text-red-600" size={20} />;
       default: return <Minus className="text-gray-600" size={20} />;
@@ -155,16 +60,32 @@ export default function StudentResultsDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 p-4 md:p-0">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg shadow-lg p-8 mb-6 text-white">
-          <h1 className="text-3xl font-bold mb-2">Academic Performance Dashboard</h1>
-          <p className="text-blue-100">Student ID: {admissionNo}</p>
+        <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg shadow-lg p-6 md:p-8 mb-6 text-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold mb-1 md:mb-2">Academic Performance</h1>
+            <p className="text-blue-100 text-sm md:text-base">Student ID: {admissionNo}</p>
+          </div>
+
+          {/* Year Selector */}
+          <div className="bg-white/20 backdrop-blur-sm p-2 rounded-lg w-full sm:w-auto flex justify-between sm:justify-start items-center">
+            <label className="mr-2 text-sm font-medium">Academic Year:</label>
+            <select
+              value={academicYear}
+              onChange={(e) => setAcademicYear(e.target.value)}
+              className="bg-white text-gray-800 rounded px-3 py-1 text-sm outline-none focus:ring-2 focus:ring-white"
+            >
+              <option value="2024-25">2024-25</option>
+              <option value="2023-24">2023-24</option>
+              <option value="2022-23">2022-23</option>
+            </select>
+          </div>
         </div>
 
         {/* Overall Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between mb-2">
               <div className="text-sm text-gray-600">Overall Average</div>
@@ -199,45 +120,48 @@ export default function StudentResultsDashboard() {
               <div className="text-sm text-gray-600">Best Subject</div>
               <TrendingUp className="text-purple-500" size={24} />
             </div>
-            <div className="text-xl font-bold text-gray-800">
-              {analytics.subjects.reduce((best, sub) => sub.average_percentage > best.average_percentage ? sub : best).subject}
-            </div>
-            <div className="text-sm text-gray-500 mt-2">
-              {Math.max(...analytics.subjects.map(s => s.average_percentage)).toFixed(2)}%
-            </div>
+            {analytics.subjects && analytics.subjects.length > 0 ? (
+              <>
+                <div className="text-xl font-bold text-gray-800">
+                  {analytics.subjects.reduce((best, sub) => (sub.average_percentage || 0) > (best.average_percentage || 0) ? sub : best).subject}
+                </div>
+                <div className="text-sm text-gray-500 mt-2">
+                  {(Math.max(...analytics.subjects.map(s => s.average_percentage || 0)) || 0).toFixed(2)}%
+                </div>
+              </>
+            ) : (
+              <div className="text-sm text-gray-500 mt-2">No data available</div>
+            )}
           </div>
         </div>
 
         {/* Navigation Tabs */}
-        <div className="bg-white rounded-lg shadow mb-6">
-          <div className="flex border-b">
+        <div className="bg-white rounded-lg shadow mb-6 overflow-hidden">
+          <div className="flex overflow-x-auto hide-scrollbar border-b">
             <button
               onClick={() => setSelectedView('overview')}
-              className={`px-6 py-3 font-medium ${
-                selectedView === 'overview' 
-                  ? 'border-b-2 border-blue-600 text-blue-600' 
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
+              className={`px-6 py-3 font-medium ${selectedView === 'overview'
+                ? 'border-b-2 border-blue-600 text-blue-600'
+                : 'text-gray-600 hover:text-gray-800'
+                }`}
             >
               Overview
             </button>
             <button
               onClick={() => setSelectedView('subjects')}
-              className={`px-6 py-3 font-medium ${
-                selectedView === 'subjects' 
-                  ? 'border-b-2 border-blue-600 text-blue-600' 
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
+              className={`px-6 py-3 font-medium ${selectedView === 'subjects'
+                ? 'border-b-2 border-blue-600 text-blue-600'
+                : 'text-gray-600 hover:text-gray-800'
+                }`}
             >
               Subject-wise Analysis
             </button>
             <button
               onClick={() => setSelectedView('comparison')}
-              className={`px-6 py-3 font-medium ${
-                selectedView === 'comparison' 
-                  ? 'border-b-2 border-blue-600 text-blue-600' 
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
+              className={`px-6 py-3 font-medium ${selectedView === 'comparison'
+                ? 'border-b-2 border-blue-600 text-blue-600'
+                : 'text-gray-600 hover:text-gray-800'
+                }`}
             >
               Performance Comparison
             </button>
@@ -248,45 +172,53 @@ export default function StudentResultsDashboard() {
         {selectedView === 'overview' && (
           <div className="space-y-6">
             {/* Exam-wise Performance Line Chart */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-xl font-bold text-gray-800 mb-4">Exam-wise Performance Trend</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={examWiseData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="exam" />
-                  <YAxis domain={[0, 100]} />
-                  <Tooltip />
-                  <Legend />
-                  <Line 
-                    type="monotone" 
-                    dataKey="percentage" 
-                    stroke="#3b82f6" 
-                    strokeWidth={3}
-                    dot={{ fill: '#3b82f6', r: 6 }}
-                    activeDot={{ r: 8 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+            <div className="bg-white rounded-lg shadow p-4 md:p-6 mb-6">
+              <h3 className="text-lg md:text-xl font-bold text-gray-800 mb-4">Exam-wise Performance Trend</h3>
+              {examWiseData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={examWiseData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="exam" />
+                    <YAxis domain={[0, 100]} />
+                    <Tooltip />
+                    <Legend />
+                    <Line
+                      type="monotone"
+                      dataKey="percentage"
+                      stroke="#3b82f6"
+                      strokeWidth={3}
+                      dot={{ fill: '#3b82f6', r: 6 }}
+                      activeDot={{ r: 8 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="text-gray-500 text-center py-10">No exam data available yet.</p>
+              )}
             </div>
 
             {/* Subject Performance Radar Chart */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-xl font-bold text-gray-800 mb-4">Subject Performance Radar</h3>
-              <ResponsiveContainer width="100%" height={400}>
-                <RadarChart data={radarData}>
-                  <PolarGrid />
-                  <PolarAngleAxis dataKey="subject" />
-                  <PolarRadiusAxis domain={[0, 100]} />
-                  <Radar 
-                    name="Score" 
-                    dataKey="score" 
-                    stroke="#8b5cf6" 
-                    fill="#8b5cf6" 
-                    fillOpacity={0.6} 
-                  />
-                  <Tooltip />
-                </RadarChart>
-              </ResponsiveContainer>
+            <div className="bg-white rounded-lg shadow p-4 md:p-6 mt-6">
+              <h3 className="text-lg md:text-xl font-bold text-gray-800 mb-4">Subject Performance Radar</h3>
+              {radarData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={400}>
+                  <RadarChart data={radarData}>
+                    <PolarGrid />
+                    <PolarAngleAxis dataKey="subject" />
+                    <PolarRadiusAxis domain={[0, 100]} />
+                    <Radar
+                      name="Score"
+                      dataKey="score"
+                      stroke="#8b5cf6"
+                      fill="#8b5cf6"
+                      fillOpacity={0.6}
+                    />
+                    <Tooltip />
+                  </RadarChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="text-gray-500 text-center py-10">No subject data available yet.</p>
+              )}
             </div>
           </div>
         )}
@@ -296,43 +228,43 @@ export default function StudentResultsDashboard() {
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {analytics.subjects.map(subject => (
-                <div 
+                <div
                   key={subject.subject}
-                  className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow cursor-pointer p-6"
+                  className="bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer p-5"
                   onClick={() => setSelectedSubject(subject)}
                 >
                   <div className="flex items-center justify-between mb-4">
-                    <h4 className="font-bold text-gray-800">{subject.subject}</h4>
+                    <h4 className="font-bold text-gray-800 text-lg">{subject.subject}</h4>
                     {getTrendIcon(subject.trend)}
                   </div>
-                  
+
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Average:</span>
-                      <span className="font-medium">{subject.average_percentage.toFixed(2)}%</span>
+                      <span className="font-medium">{(subject.average_percentage || 0).toFixed(2)}%</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Highest:</span>
-                      <span className="font-medium text-green-600">{subject.highest}%</span>
+                      <span className="font-medium text-green-600">{subject.highest || 0}%</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Lowest:</span>
-                      <span className="font-medium text-red-600">{subject.lowest}%</span>
+                      <span className="font-medium text-red-600">{subject.lowest || 0}%</span>
                     </div>
                   </div>
 
                   {/* Mini progress bars */}
                   <div className="mt-4 space-y-1">
-                    {subject.exams.map(exam => (
+                    {subject.exams && subject.exams.map(exam => (
                       <div key={exam.exam_id} className="flex items-center gap-2">
                         <div className="text-xs text-gray-500 w-20">{exam.exam_id.split('_').slice(-1)[0]}</div>
                         <div className="flex-1 bg-gray-200 rounded-full h-2">
-                          <div 
-                            className="bg-blue-600 h-2 rounded-full" 
-                            style={{ width: `${exam.percentage}%` }}
+                          <div
+                            className="bg-blue-600 h-2 rounded-full"
+                            style={{ width: `${exam.percentage || 0}%` }}
                           ></div>
                         </div>
-                        <div className="text-xs font-medium w-12">{exam.percentage}%</div>
+                        <div className="text-xs font-medium w-12">{exam.percentage || 0}%</div>
                       </div>
                     ))}
                   </div>
@@ -342,32 +274,36 @@ export default function StudentResultsDashboard() {
 
             {/* Detailed Subject View */}
             {selectedSubject && (
-              <div className="bg-white rounded-lg shadow p-6">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 md:p-6 mt-6">
                 <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-2xl font-bold text-gray-800">{selectedSubject.subject} - Detailed Analysis</h3>
-                  <button 
+                  <h3 className="text-xl md:text-2xl font-bold text-gray-800">{selectedSubject.subject} - Analysis</h3>
+                  <button
                     onClick={() => setSelectedSubject(null)}
-                    className="text-gray-600 hover:text-gray-800"
+                    className="text-gray-500 hover:text-gray-800 text-sm font-medium"
                   >
                     Close
                   </button>
                 </div>
 
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={selectedSubject.exams.map(e => ({
-                    exam: e.exam_id.replace('_', ' '),
-                    percentage: e.percentage,
-                    obtained: e.total_obtained,
-                    max: e.total_max
-                  }))}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="exam" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="percentage" fill="#3b82f6" />
-                  </BarChart>
-                </ResponsiveContainer>
+                <div className="overflow-x-auto hide-scrollbar">
+                  <div style={{ minWidth: '400px' }}>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={selectedSubject.exams.map(e => ({
+                        exam: e.exam_id.replace('_', ' '),
+                        percentage: e.percentage,
+                        obtained: e.total_obtained,
+                        max: e.total_max
+                      }))}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="exam" tickLine={false} axisLine={false} />
+                        <YAxis tickLine={false} axisLine={false} />
+                        <Tooltip cursor={{ fill: 'transparent' }} />
+                        <Legend iconType="circle" />
+                        <Bar dataKey="percentage" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
 
                 <div className="mt-6 overflow-x-auto">
                   <table className="w-full">
@@ -402,20 +338,24 @@ export default function StudentResultsDashboard() {
 
         {/* Comparison Tab */}
         {selectedView === 'comparison' && (
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 md:p-6 mb-6">
             <h3 className="text-xl font-bold text-gray-800 mb-4">Subject Comparison</h3>
-            <ResponsiveContainer width="100%" height={400}>
-              <BarChart data={subjectComparisonData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="subject" angle={-45} textAnchor="end" height={100} />
-                <YAxis domain={[0, 100]} />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="average" fill="#3b82f6" name="Average" />
-                <Bar dataKey="highest" fill="#10b981" name="Highest" />
-                <Bar dataKey="lowest" fill="#ef4444" name="Lowest" />
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="overflow-x-auto hide-scrollbar">
+              <div style={{ minWidth: '400px' }}>
+                <ResponsiveContainer width="100%" height={400}>
+                  <BarChart data={subjectComparisonData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="subject" angle={-45} textAnchor="end" height={80} tickLine={false} axisLine={false} />
+                    <YAxis domain={[0, 100]} tickLine={false} axisLine={false} />
+                    <Tooltip cursor={{ fill: 'transparent' }} />
+                    <Legend iconType="circle" />
+                    <Bar dataKey="average" fill="#3b82f6" name="Average" radius={[4, 4, 0, 0]} maxBarSize={30} />
+                    <Bar dataKey="highest" fill="#10b981" name="Highest" radius={[4, 4, 0, 0]} maxBarSize={30} />
+                    <Bar dataKey="lowest" fill="#ef4444" name="Lowest" radius={[4, 4, 0, 0]} maxBarSize={30} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
           </div>
         )}
       </div>

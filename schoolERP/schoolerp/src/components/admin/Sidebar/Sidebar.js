@@ -21,9 +21,10 @@ const Sidebar = ({ currentView, onViewChange, sidebarOpen, setSidebarOpen }) => 
     const navigationItems = [
         { id: 'dashboard', icon: Home, label: 'Dashboard' },
         { id: 'teachers', icon: GraduationCap, label: 'Teachers' },
+        { id: 'teachers-attendance', icon: Calendar, label: 'Teacher Attendance' },
         { id: 'students', icon: Users, label: 'Students' },
         { id: 'marking-schemes', icon: BookOpen, label: 'Marking Schemes' },
-        { id: 'attendance-backlog', icon: Calendar, label: 'Attendance Backlog' },
+        { id: 'attendance-backlog', icon: Calendar, label: 'Student Backlog' },
         { id: 'reports', icon: FileText, label: 'Reports' },
         { id: 'analytics', icon: BarChart3, label: 'Analytics' },
     ];

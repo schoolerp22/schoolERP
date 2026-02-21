@@ -19,7 +19,8 @@ const AttendanceBacklog = () => {
     const fetchBacklogs = async () => {
         setLoading(true);
         try {
-            const response = await axios.get(`http://localhost:5000/api/admin/${adminId}/attendance-backlog`);
+            const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+            const response = await axios.get(`${API_BASE}/api/admin/${adminId}/attendance-backlog`);
             setBacklogs(response.data);
         } catch (error) {
             console.error('Error fetching backlogs:', error);
@@ -37,7 +38,8 @@ const AttendanceBacklog = () => {
         e.preventDefault();
         setLoading(true);
         try {
-            await axios.post(`http://localhost:5000/api/admin/${adminId}/attendance-backlog`, formData);
+            const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+            await axios.post(`${API_BASE}/api/admin/${adminId}/attendance-backlog`, formData);
             setShowCreateForm(false);
             setFormData({ start_date: '', end_date: '', class_section: 'All', reason: '' });
             fetchBacklogs();
@@ -54,7 +56,8 @@ const AttendanceBacklog = () => {
 
         setLoading(true);
         try {
-            await axios.patch(`http://localhost:5000/api/admin/${adminId}/attendance-backlog/${backlogId}/close`);
+            const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+            await axios.patch(`${API_BASE}/api/admin/${adminId}/attendance-backlog/${backlogId}/close`);
             fetchBacklogs();
         } catch (error) {
             alert(error.response?.data?.message || 'Error closing backlog');
@@ -69,7 +72,8 @@ const AttendanceBacklog = () => {
 
         setLoading(true);
         try {
-            await axios.delete(`http://localhost:5000/api/admin/${adminId}/attendance-backlog/${backlogId}`);
+            const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+            await axios.delete(`${API_BASE}/api/admin/${adminId}/attendance-backlog/${backlogId}`);
             fetchBacklogs();
         } catch (error) {
             alert(error.response?.data?.message || 'Error deleting backlog');

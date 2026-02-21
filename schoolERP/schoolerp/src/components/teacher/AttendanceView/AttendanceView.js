@@ -91,7 +91,8 @@ const AttendanceView = ({ students, selectedClass, teacherId, loadings }) => {
   useEffect(() => {
     if (activeTab === 'mark' && selectedClass && attendanceDate) {
       setCheckingBacklog(true);
-      fetch(`http://localhost:5000/api/teacher/${teacherId}/backlog-status/${attendanceDate}/${selectedClass}`)
+      const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      fetch(`${API_BASE}/api/teacher/${teacherId}/backlog-status/${attendanceDate}/${selectedClass}`)
         .then(res => res.json())
         .then(data => {
           setBacklogStatus(data);

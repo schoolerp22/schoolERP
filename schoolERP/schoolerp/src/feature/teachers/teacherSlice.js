@@ -1,7 +1,7 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
 
-// const API_URL = "http://localhost:5000/api/teacher";
+// const API_URL = `${process.env.REACT_APP_API_URL}/api/teacher`;
 // const API_URL = "https://schoolerp-1xul.onrender.com/api/teacher";
 const API_URL = `${process.env.REACT_APP_API_URL}/api/teacher`
 
@@ -180,7 +180,7 @@ export const deleteAnnouncement = createAsyncThunk(
       await axios.delete(`${API_URL}/${teacherId}/announcements/${announcementId}`);
       return announcementId; // Return ID to filter out from state
     } catch (error) {
-       return rejectWithValue(
+      return rejectWithValue(
         error.response?.data || error.message || "Something went wrong"
       );
     }
@@ -423,6 +423,66 @@ const getInitialProfile = () => {
   }
 };
 
+// ==========================================
+// NEW: TEACHER SELF-ATTENDANCE THUNKS
+// ==========================================
+
+// Mark Self Attendance
+export const markSelfAttendance = createAsyncThunk(
+  "teacher/markSelfAttendance",
+  async ({ teacherId, attendanceData }, { rejectWithValue }) => {
+    try {
+      const response = await axios.post(`${API_URL}/${teacherId}/self-attendance`, attendanceData);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+// Get Self Attendance History
+export const getSelfAttendance = createAsyncThunk(
+  "teacher/getSelfAttendance",
+  async ({ teacherId, startDate, endDate }, { rejectWithValue }) => {
+    try {
+      let query = "";
+      if (startDate && endDate) {
+        query = `?startDate=${startDate}&endDate=${endDate}`;
+      }
+      const response = await axios.get(`${API_URL}/${teacherId}/self-attendance${query}`);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+// Check Self Backlog Status
+export const checkSelfBacklogStatus = createAsyncThunk(
+  "teacher/checkSelfBacklogStatus",
+  async ({ teacherId, date }, { rejectWithValue }) => {
+    try {
+      const response = await axios.get(`${API_URL}/${teacherId}/self-backlog-status/${date}`);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+// Request Self Attendance Backlog
+export const requestSelfAttendanceBacklog = createAsyncThunk(
+  "teacher/requestSelfAttendanceBacklog",
+  async ({ teacherId, requestData }, { rejectWithValue }) => {
+    try {
+      const response = await axios.post(`${API_URL}/${teacherId}/self-attendance-backlog`, requestData);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
 const initialState = {
   profile: getInitialProfile(),
   students: [],
@@ -443,6 +503,10 @@ const initialState = {
   resultsStats: null,
   classComparison: [],
   timetable: null,
+
+  // self attendance state
+  selfAttendanceHistory: [],
+  selfBacklogStatus: null,
 
   loadings: {
     profile: false,
@@ -521,6 +585,9 @@ const teacherSlice = createSlice({
       state.classResults = [];
       state.resultsStats = null;
       state.classComparison = [];
+
+      state.selfAttendanceHistory = [];
+      state.selfBacklogStatus = null;
 
       state.error = null;
       state.success = false;
@@ -785,6 +852,62 @@ const teacherSlice = createSlice({
       })
       .addCase(getClassResults.rejected, (state, action) => {
         state.loadings.results = false;
+        state.error = action.payload;
+      })
+
+      // ==========================================
+      // NEW: TEACHER SELF-ATTENDANCE REDUCERS
+      // ==========================================
+
+      // Mark Self Attendance
+      .addCase(markSelfAttendance.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(markSelfAttendance.fulfilled, (state, action) => {
+        state.loading = false;
+        state.success = true;
+      })
+      .addCase(markSelfAttendance.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // Get Self Attendance History
+      .addCase(getSelfAttendance.pending, (state) => {
+        state.loadings.attendance = true;
+      })
+      .addCase(getSelfAttendance.fulfilled, (state, action) => {
+        state.loadings.attendance = false;
+        state.selfAttendanceHistory = action.payload;
+      })
+      .addCase(getSelfAttendance.rejected, (state, action) => {
+        state.loadings.attendance = false;
+        state.error = action.payload;
+      })
+
+      // Check Self Backlog Status
+      .addCase(checkSelfBacklogStatus.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(checkSelfBacklogStatus.fulfilled, (state, action) => {
+        state.loading = false;
+        state.selfBacklogStatus = action.payload;
+      })
+      .addCase(checkSelfBacklogStatus.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // Request Self Attendance Backlog
+      .addCase(requestSelfAttendanceBacklog.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(requestSelfAttendanceBacklog.fulfilled, (state, action) => {
+        state.loading = false;
+        state.success = true;
+      })
+      .addCase(requestSelfAttendanceBacklog.rejected, (state, action) => {
+        state.loading = false;
         state.error = action.payload;
       })
 

@@ -39,7 +39,7 @@ const HomeworkView = ({ selectedClass, teacherId, profile }) => {
 
   const handleSubmissionsClick = (hwId) => {
     setViewingSubmissionsId(hwId);
-    console.log('viewingSubmissionsId',viewingSubmissionsId)
+    console.log('viewingSubmissionsId', viewingSubmissionsId)
     dispatch(getHomeworkSubmissions({ teacherId, homeworkId: hwId }));
     setShowSubmissionsModal(true);
   };
@@ -75,7 +75,7 @@ const HomeworkView = ({ selectedClass, teacherId, profile }) => {
     setHomeworkForm({ subject: '', topic: '', description: '', dueDate: '', attachment: null });
   };
 
-  const API_Base = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+  const API_Base = process.env.REACT_APP_API_URL || ''; // Prevent localhost fallback in prod
 
   return (
     <div className="space-y-4 sm:space-y-6">

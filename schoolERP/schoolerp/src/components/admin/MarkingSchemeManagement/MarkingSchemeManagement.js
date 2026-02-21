@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Plus, X,  Archive, Trash2, CheckCircle } from 'lucide-react';
+import { BookOpen, Plus, X, Archive, Trash2, CheckCircle } from 'lucide-react';
 import axios from 'axios';
 
 const MarkingSchemeManagement = () => {
@@ -32,7 +32,8 @@ const MarkingSchemeManagement = () => {
 
     const fetchTemplates = async () => {
         try {
-            const response = await axios.get(`http://localhost:5000/api/admin/${adminId}/marking-schemes/templates`);
+            const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+            const response = await axios.get(`${API_BASE}/api/admin/${adminId}/marking-schemes/templates`);
             setTemplates(response.data);
         } catch (error) {
             console.error('Error fetching templates:', error);
@@ -42,7 +43,8 @@ const MarkingSchemeManagement = () => {
     const fetchSchemes = async () => {
         setLoading(true);
         try {
-            const response = await axios.get(`http://localhost:5000/api/admin/${adminId}/marking-schemes`);
+            const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+            const response = await axios.get(`${API_BASE}/api/admin/${adminId}/marking-schemes`);
             setSchemes(response.data);
         } catch (error) {
             console.error('Error fetching schemes:', error);
@@ -68,7 +70,8 @@ const MarkingSchemeManagement = () => {
         e.preventDefault();
         setLoading(true);
         try {
-            await axios.post(`http://localhost:5000/api/admin/${adminId}/marking-schemes`, {
+            const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+            await axios.post(`${API_BASE}/api/admin/${adminId}/marking-schemes`, {
                 ...formData,
                 template: selectedTemplate || undefined
             });
@@ -88,7 +91,8 @@ const MarkingSchemeManagement = () => {
 
         setLoading(true);
         try {
-            await axios.patch(`http://localhost:5000/api/admin/${adminId}/marking-schemes/${schemeId}/archive`);
+            const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+            await axios.patch(`${API_BASE}/api/admin/${adminId}/marking-schemes/${schemeId}/archive`);
             fetchSchemes();
         } catch (error) {
             alert(error.response?.data?.message || 'Error archiving scheme');
@@ -102,7 +106,8 @@ const MarkingSchemeManagement = () => {
 
         setLoading(true);
         try {
-            await axios.delete(`http://localhost:5000/api/admin/${adminId}/marking-schemes/${schemeId}`);
+            const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+            await axios.delete(`${API_BASE}/api/admin/${adminId}/marking-schemes/${schemeId}`);
             fetchSchemes();
         } catch (error) {
             alert(error.response?.data?.message || 'Error deleting scheme');

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { submitHomework, getStudentHomework } from "../../../feature/students/studentSlice";
-import {  Download, Upload, CheckCircle, BookOpen } from 'lucide-react';
+import { Download, Upload, CheckCircle, BookOpen } from 'lucide-react';
 import "./HomeworkView.css";
 
 const HomeworkView = ({ homework, studentId }) => {
@@ -25,7 +25,7 @@ const HomeworkView = ({ homework, studentId }) => {
     (a, b) => new Date(b.due_date) - new Date(a.due_date)
   );
 
-  const API_Base = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+  const API_Base = process.env.REACT_APP_API_URL || ''; // Prevent localhost fallback in prod
 
   const handleSubmit = (hwId) => {
     if (!submissionFile && !submissionNote) return alert("Please add a note or attach a file.");

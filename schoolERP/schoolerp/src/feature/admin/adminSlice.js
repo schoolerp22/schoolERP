@@ -155,6 +155,48 @@ export const bulkUploadStudents = createAsyncThunk(
     }
 );
 
+// ==================== TEACHER ATTENDANCE ADMIN ====================
+
+export const getTeachersAttendance = createAsyncThunk(
+    "admin/getTeachersAttendance",
+    async ({ adminId, date }, { rejectWithValue }) => {
+        try {
+            const response = await axios.get(`${API_URL}/${adminId}/teachers-attendance?date=${date}`);
+            return response.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data || error.message);
+        }
+    }
+);
+
+export const getTeacherAttendanceBacklogs = createAsyncThunk(
+    "admin/getTeacherAttendanceBacklogs",
+    async ({ adminId, status }, { rejectWithValue }) => {
+        try {
+            const query = status ? `?status=${status}` : '';
+            const response = await axios.get(`${API_URL}/${adminId}/teacher-attendance-backlog${query}`);
+            return response.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data || error.message);
+        }
+    }
+);
+
+export const approveTeacherAttendanceBacklog = createAsyncThunk(
+    "admin/approveTeacherAttendanceBacklog",
+    async ({ adminId, requestId, status, remarks }, { rejectWithValue }) => {
+        try {
+            const response = await axios.post(`${API_URL}/${adminId}/teacher-attendance-backlog/${requestId}/approve`, {
+                status,
+                remarks
+            });
+            return response.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data || error.message);
+        }
+    }
+);
+
 // ==================== REPORTS & ANALYTICS ====================
 
 export const getTeacherReports = createAsyncThunk(
@@ -256,6 +298,10 @@ const initialState = {
     // Analytics
     classWiseAnalytics: [],
     subjectWiseAnalytics: [],
+
+    // Teacher Attendance Admin
+    teachersAttendanceData: [],
+    teacherAttendanceBacklogs: [],
 
     // UI State
     loading: false,
@@ -458,6 +504,42 @@ const adminSlice = createSlice({
             })
             .addCase(getSubjectWiseAnalytics.fulfilled, (state, action) => {
                 state.subjectWiseAnalytics = action.payload;
+            })
+
+            // Teacher Attendance Admin
+            .addCase(getTeachersAttendance.pending, (state) => {
+                state.loading = true;
+            })
+            .addCase(getTeachersAttendance.fulfilled, (state, action) => {
+                state.loading = false;
+                state.teachersAttendanceData = action.payload;
+            })
+            .addCase(getTeachersAttendance.rejected, (state, action) => {
+                state.loading = false;
+                state.error = action.payload;
+            })
+            .addCase(getTeacherAttendanceBacklogs.pending, (state) => {
+                state.loading = true;
+            })
+            .addCase(getTeacherAttendanceBacklogs.fulfilled, (state, action) => {
+                state.loading = false;
+                state.teacherAttendanceBacklogs = action.payload;
+            })
+            .addCase(getTeacherAttendanceBacklogs.rejected, (state, action) => {
+                state.loading = false;
+                state.error = action.payload;
+            })
+            .addCase(approveTeacherAttendanceBacklog.pending, (state) => {
+                state.loading = true;
+            })
+            .addCase(approveTeacherAttendanceBacklog.fulfilled, (state, action) => {
+                state.loading = false;
+                state.success = true;
+                state.successMessage = action.payload.message;
+            })
+            .addCase(approveTeacherAttendanceBacklog.rejected, (state, action) => {
+                state.loading = false;
+                state.error = action.payload;
             });
     },
 });

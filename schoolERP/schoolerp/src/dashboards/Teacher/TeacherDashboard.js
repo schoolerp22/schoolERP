@@ -15,6 +15,7 @@ import TimetableManagement from '../../components/teacher/TimetableManagement/Ti
 //Import Results Components
 import ResultsUpload from '../../components/teacher/ResultsUpload/ResultsUpload';
 import TeacherPerformanceDashboard from '../../components/teacher/TeacherPerformanceDashboard/TeacherPerformanceDashboard';
+import MyAttendanceView from '../../components/teacher/MyAttendanceView/MyAttendanceView';
 
 import {
   getTeacherProfile,
@@ -121,6 +122,10 @@ const TeacherDashboard = () => {
             selectedClass={selectedClass}
             loadings={loadings}
           />
+        );
+      case 'my-attendance':
+        return (
+          <MyAttendanceView />
         );
       case 'attendance':
         return (

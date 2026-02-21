@@ -6,6 +6,7 @@ import Sidebar from '../../components/admin/Sidebar/Sidebar';
 import Header from '../../components/admin/Header/Header';
 import DashboardView from '../../components/admin/DashboardView/DashboardView';
 import TeachersManagementView from '../../components/admin/TeachersManagementView/TeachersManagementView';
+import TeachersAttendanceView from '../../components/admin/TeachersManagementView/TeachersAttendanceView';
 import StudentsManagementView from '../../components/admin/StudentsManagementView/StudentsManagementView';
 import ReportsView from '../../components/admin/ReportsView/ReportsView';
 import AnalyticsView from '../../components/admin/AnalyticsView/AnalyticsView';
@@ -316,6 +317,8 @@ export default function SchoolAdminDashboard() {
             onPageChange={handleTeacherPageChange}
           />
         );
+      case 'teachers-attendance':
+        return <TeachersAttendanceView adminId={adminId} />;
       case 'students':
         return (
           <StudentsManagementView

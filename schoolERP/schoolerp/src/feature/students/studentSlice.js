@@ -1,7 +1,7 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
 
-// const API_URL = "http://localhost:5000/api/student";
+// const API_URL = `${process.env.REACT_APP_API_URL}/api/student`;
 // const API_URL = "https://schoolerp-1xul.onrender.com/api/student";
 //  https://schoolerp-1xul.onrender.com
 console.log("ENV:", process.env.REACT_APP_API_URL);

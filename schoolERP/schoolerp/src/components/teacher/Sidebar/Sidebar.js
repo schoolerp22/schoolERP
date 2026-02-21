@@ -13,8 +13,9 @@ const Sidebar = ({ profile, currentView, onViewChange, sidebarOpen, onToggleSide
 
   const navigationItems = [
     { id: 'dashboard', icon: Home, label: 'Dashboard' },
+    { id: 'my-attendance', icon: Calendar, label: 'My Attendance' },
     { id: 'students', icon: Users, label: 'My Students' },
-    { id: 'attendance', icon: Calendar, label: 'Attendance' },
+    { id: 'attendance', icon: Calendar, label: 'Student Attendance' },
     { id: 'homework', icon: BookOpen, label: 'Homework' },
     { id: 'announcements', icon: Bell, label: 'Announcements' },
     { id: 'leaves', icon: FileText, label: 'Leave Requests' },

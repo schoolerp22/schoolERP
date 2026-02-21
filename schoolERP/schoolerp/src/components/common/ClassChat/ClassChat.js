@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useChat } from '../../../hooks/useChat';
 import { Send, Paperclip, Image as ImageIcon, FileText, X, Settings, Users, Loader, Check, Pencil, Trash2, SmilePlus, Eye } from 'lucide-react';
 

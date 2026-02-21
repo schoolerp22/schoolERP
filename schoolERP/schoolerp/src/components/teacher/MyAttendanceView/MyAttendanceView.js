@@ -46,7 +46,7 @@ const MyAttendanceView = () => {
             fetchHistory();
             dispatch(getSelfAttendanceBacklogs(profile.teacher_id));
         }
-    }, [profile, fetchHistory]);
+    }, [profile, fetchHistory, dispatch]);
 
     useEffect(() => {
         if (profile?.teacher_id && selectedDate) {
@@ -289,9 +289,9 @@ const MyAttendanceView = () => {
                                 </div>
                                 <div className="text-right flex flex-col items-end">
                                     <span className={`px-3 py-1 text-xs font-semibold rounded-full mb-2 ${backlog.status === 'Open' ? 'bg-green-100 text-green-700' :
-                                            backlog.status === 'Rejected' ? 'bg-red-100 text-red-700' :
-                                                backlog.status === 'Closed' ? 'bg-gray-200 text-gray-700' :
-                                                    'bg-yellow-100 text-yellow-700'
+                                        backlog.status === 'Rejected' ? 'bg-red-100 text-red-700' :
+                                            backlog.status === 'Closed' ? 'bg-gray-200 text-gray-700' :
+                                                'bg-yellow-100 text-yellow-700'
                                         }`}>
                                         {backlog.status === 'Open' ? 'Approved' : backlog.status}
                                     </span>

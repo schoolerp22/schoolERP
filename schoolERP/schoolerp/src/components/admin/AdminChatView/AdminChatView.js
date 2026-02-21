@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useSelector } from 'react-redux';
+// import { useSelector } from 'react-redux';
 import ClassChat from '../../common/ClassChat/ClassChat';
-import { MessageSquare, AlertCircle } from 'lucide-react';
-import axios from 'axios';
+import { MessageSquare } from 'lucide-react';
+// import axios from 'axios';
 
 const AdminChatView = ({ adminId }) => {
     // Admin needs to select which class/section to view chat for
@@ -34,6 +34,7 @@ const AdminChatView = ({ adminId }) => {
                 ];
                 setClasses(demoClasses);
                 setLoadingClasses(false);
+                console.log('loadingClasses',loadingClasses)
             } catch (error) {
                 console.error("Failed to load classes", error);
                 setLoadingClasses(false);

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     collection,
     query,
@@ -11,8 +11,7 @@ import {
     getDoc,
     updateDoc,
     deleteDoc,
-    arrayUnion,
-    arrayRemove
+    arrayUnion
 } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -23,8 +22,8 @@ export const useChat = (classNum, section, currentUserId, currentUserRole) => {
     const [error, setError] = useState(null);
 
     const roomId = `${classNum}_${section}`;
-    const roomRef = doc(db, 'chatRooms', roomId);
-    const messagesRef = collection(db, 'chatRooms', roomId, 'messages');
+    const roomRef = useMemo(() => doc(db, 'chatRooms', roomId), [roomId]);
+    const messagesRef = useMemo(() => collection(db, 'chatRooms', roomId, 'messages'), [roomId]);
 
     // Initialize room and listen to messages
     useEffect(() => {
@@ -94,7 +93,7 @@ export const useChat = (classNum, section, currentUserId, currentUserRole) => {
             if (unsubscribeMessages) unsubscribeMessages();
             if (unsubscribeSettings) unsubscribeSettings();
         };
-    }, [classNum, section, currentUserId, currentUserRole]);
+    }, [classNum, section, currentUserId, currentUserRole, roomRef, messagesRef]);
 
     // Send a message
     const sendMessage = async (text, file = null, senderName) => {

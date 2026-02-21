@@ -1,10 +1,9 @@
 import React from 'react';
 import { useDispatch } from 'react-redux';
 import { logout } from '../../../feature/auth/authSlice';
-import {
-  Users, Calendar, BookOpen, Bell, FileText,
+import { Calendar, BookOpen, Bell, FileText,
   Home, Menu, X, Upload, BarChart3, LogOut,
-  ClipboardCheck, CalendarDays, Target, Clock, MessageSquare
+  ClipboardCheck, CalendarDays, Clock, MessageSquare
 } from 'lucide-react';
 import LogoutConfirmModal from '../../common/LogoutConfirmModal';
 

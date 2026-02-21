@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
     getSelfAttendance,
@@ -17,19 +17,7 @@ const MyAttendanceView = () => {
     const [backlogReason, setBacklogReason] = useState("");
     const [checkStatus, setCheckStatus] = useState(null); // { allowed, reason, isPast, isFuture, requiresBacklog }
 
-    useEffect(() => {
-        if (profile?.teacher_id) {
-            fetchHistory();
-        }
-    }, [profile]);
-
-    useEffect(() => {
-        if (profile?.teacher_id && selectedDate) {
-            checkDateStatus();
-        }
-    }, [selectedDate, profile]);
-
-    const fetchHistory = () => {
+    const fetchHistory = useCallback(() => {
         const today = new Date();
         const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
         const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
@@ -39,12 +27,24 @@ const MyAttendanceView = () => {
             startDate: startOfMonth,
             endDate: endOfMonth
         }));
-    };
+    }, [dispatch, profile]);
 
-    const checkDateStatus = async () => {
+    const checkDateStatus = useCallback(async () => {
         const res = await dispatch(checkSelfBacklogStatus({ teacherId: profile.teacher_id, date: selectedDate })).unwrap();
         setCheckStatus(res);
-    };
+    }, [dispatch, profile, selectedDate]);
+
+    useEffect(() => {
+        if (profile?.teacher_id) {
+            fetchHistory();
+        }
+    }, [profile, fetchHistory]);
+
+    useEffect(() => {
+        if (profile?.teacher_id && selectedDate) {
+            checkDateStatus();
+        }
+    }, [selectedDate, profile, checkDateStatus]);
 
     const handleMarkAttendance = async (e) => {
         e.preventDefault();
@@ -198,8 +198,8 @@ const MyAttendanceView = () => {
                                     </div>
                                     <div>
                                         <span className={`px-3 py-1 text-xs font-semibold rounded-full ${record.status === 'Present' ? 'bg-green-100 text-green-700' :
-                                                record.status === 'Absent' ? 'bg-red-100 text-red-700' :
-                                                    'bg-yellow-100 text-yellow-700'
+                                            record.status === 'Absent' ? 'bg-red-100 text-red-700' :
+                                                'bg-yellow-100 text-yellow-700'
                                             }`}>
                                             {record.status}
                                         </span>

@@ -5,7 +5,7 @@ import {
     getTeacherAttendanceBacklogs,
     approveTeacherAttendanceBacklog
 } from '../../../feature/admin/adminSlice';
-import { Search, Filter, Calendar, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Search,  CheckCircle, XCircle} from 'lucide-react';
 
 const TeachersAttendanceView = ({ adminId }) => {
     const dispatch = useDispatch();

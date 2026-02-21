@@ -110,6 +110,203 @@ router.get("/:teacherId/students/:classSection", async (req, res) => {
   }
 });
 
+// ==========================================
+// TEACHER SELF-ATTENDANCE ROUTES
+// ==========================================
+
+// @route   GET /api/teacher/:teacherId/self-backlog-status/:date
+// @desc    Check if a teacher can mark their own attendance for a specific date
+router.get("/:teacherId/self-backlog-status/:date", async (req, res) => {
+  try {
+    const db = getDB(req);
+    const { date, teacherId } = req.params;
+
+    const [year, month, day] = date.split('-').map(num => parseInt(num, 10));
+    const startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+    const endOfDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+
+    const localDate = new Date(date);
+    localDate.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Future date
+    if (localDate > today) {
+      return res.json({ allowed: false, reason: "Future dates are not allowed", isFuture: true });
+    }
+
+    // Today
+    if (localDate.getTime() === today.getTime()) {
+      return res.json({ allowed: true, reason: "Today's attendance", isToday: true });
+    }
+
+    // Past date - Check teacher backlog
+    const backlog = await db.collection("teacher_attendance_backlog").findOne({
+      status: "Open",
+      teacher_id: teacherId,
+      start_date: { $lte: startOfDay },
+      end_date: { $gte: endOfDay }
+    });
+
+    if (backlog) {
+      return res.json({
+        allowed: true,
+        reason: `Backlog open: ${backlog.reason || 'No reason provided'}`,
+        backlog: { start_date: backlog.start_date, end_date: backlog.end_date, reason: backlog.reason }
+      });
+    }
+
+    return res.json({ allowed: false, reason: "Backlog window not open for this date", isPast: true });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   GET /api/teacher/:teacherId/self-attendance
+// @desc    Get teacher's own attendance history
+router.get("/:teacherId/self-attendance", async (req, res) => {
+  try {
+    const db = getDB(req);
+    const { startDate, endDate } = req.query;
+
+    let query = { teacher_id: req.params.teacherId };
+
+    if (startDate && endDate) {
+      query.date = {
+        $gte: new Date(startDate),
+        $lte: new Date(new Date(endDate).setHours(23, 59, 59, 999))
+      };
+    }
+
+    const attendance = await db.collection("teacher_attendance")
+      .find(query)
+      .sort({ date: -1 })
+      .toArray();
+
+    res.json(attendance);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   POST /api/teacher/:teacherId/self-attendance
+// @desc    Mark teacher's own attendance
+router.post("/:teacherId/self-attendance", async (req, res) => {
+  try {
+    const db = getDB(req);
+    const teacherId = req.params.teacherId;
+    const { date, status, reason } = req.body;
+
+    const [year, month, day] = date.split('-').map(num => parseInt(num, 10));
+    const startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+    const endOfDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+
+    const localDate = new Date(date);
+    localDate.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // 1. Block future dates
+    if (localDate > today) {
+      return res.status(403).json({ message: "Cannot mark attendance for future dates." });
+    }
+
+    // 2. Check Backlog for past dates
+    if (localDate < today) {
+      const backlog = await db.collection("teacher_attendance_backlog").findOne({
+        status: "Open",
+        teacher_id: teacherId,
+        start_date: { $lte: startOfDay },
+        end_date: { $gte: endOfDay }
+      });
+
+      if (!backlog) {
+        return res.status(403).json({
+          message: "Cannot mark attendance for past dates. Please request an attendance backlog.",
+          requiresBacklog: true
+        });
+      }
+    }
+
+    // 3. Check for existing record
+    const existingRecord = await db.collection("teacher_attendance").findOne({
+      teacher_id: teacherId,
+      date: { $gte: startOfDay, $lte: endOfDay }
+    });
+
+    const isUpdate = !!existingRecord;
+
+    if (isUpdate && localDate < today) {
+      return res.status(400).json({ message: "Cannot edit past attendance records." });
+    }
+
+    if (isUpdate && !reason) {
+      return res.status(400).json({ message: "A reason is required to update attendance." });
+    }
+
+    // Prepare record
+    const record = {
+      teacher_id: teacherId,
+      date: startOfDay,
+      status: status, // "Present", "Absent", "Half-Day"
+      marked_at: new Date(),
+      is_edited: isUpdate,
+      edit_note: isUpdate ? reason : null
+    };
+
+    if (isUpdate) {
+      await db.collection("teacher_attendance").updateOne(
+        { _id: existingRecord._id },
+        { $set: record }
+      );
+    } else {
+      await db.collection("teacher_attendance").insertOne(record);
+    }
+
+    res.json({
+      message: isUpdate ? "Self attendance updated successfully" : "Self attendance marked successfully",
+      isUpdate
+    });
+
+  } catch (error) {
+    console.error("Self attendance error:", error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   POST /api/teacher/:teacherId/self-attendance-backlog
+// @desc    Request an admin to open a backlog window for the teacher
+router.post("/:teacherId/self-attendance-backlog", async (req, res) => {
+  try {
+    const db = getDB(req);
+    const { teacherId } = req.params;
+    const { start_date, end_date, reason } = req.body;
+
+    if (!start_date || !end_date || !reason) {
+      return res.status(400).json({ message: "Start date, end date, and reason are required" });
+    }
+
+    const request = {
+      teacher_id: teacherId,
+      start_date: new Date(start_date),
+      end_date: new Date(end_date),
+      reason,
+      status: "Pending", // Pending, Open, Closed, Rejected
+      requested_at: new Date()
+    };
+
+    await db.collection("teacher_attendance_backlog").insertOne(request);
+
+    res.status(201).json({ message: "Backlog request submitted to Admin successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ==========================================
+// END TEACHER SELF-ATTENDANCE ROUTES
+// ==========================================
+
 
 // @route   POST /api/teacher/:teacherId/attendance
 // @desc    Mark or Update attendance for students

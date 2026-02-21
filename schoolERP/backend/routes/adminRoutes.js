@@ -227,11 +227,131 @@ router.delete("/:adminId/teachers/:teacherId", async (req, res) => {
             teacher_id: req.params.teacherId
         });
 
-        if (result.deletedCount === 0) {
-            return res.status(404).json({ message: "Teacher not found" });
+        res.json({ message: "Teacher deleted successfully" });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// ==================== TEACHER ATTENDANCE ADMINISTRATION ====================
+
+/**
+ * @route   GET /api/admin/:adminId/teachers-attendance
+ * @desc    Get attendance for all teachers on a specific date
+ */
+router.get("/:adminId/teachers-attendance", async (req, res) => {
+    try {
+        const db = getDB(req);
+        const { date } = req.query;
+
+        if (!date) {
+            return res.status(400).json({ message: "Date parameter is required" });
         }
 
-        res.json({ message: "Teacher deleted successfully" });
+        const [year, month, day] = date.split('-').map(num => parseInt(num, 10));
+        const startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+        const endOfDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+
+        // Get all teachers
+        const teachers = await db.collection("teachers").find({}, { projection: { teacher_id: 1, personal_details: 1, assigned_classes: 1 } }).toArray();
+
+        // Get attendance records for this date
+        const attendanceRecords = await db.collection("teacher_attendance").find({
+            date: { $gte: startOfDay, $lte: endOfDay }
+        }).toArray();
+
+        // Create a map of attendance by teacher_id
+        const attendanceMap = {};
+        attendanceRecords.forEach(record => {
+            attendanceMap[record.teacher_id] = record;
+        });
+
+        // Merge teachers with their attendance status
+        const mergedData = teachers.map(teacher => {
+            const record = attendanceMap[teacher.teacher_id];
+            return {
+                teacher_id: teacher.teacher_id,
+                name: teacher.personal_details?.name || `${teacher.personal_details?.first_name || ''} ${teacher.personal_details?.last_name || ''}`.trim() || 'Unknown',
+                email: teacher.personal_details?.email || 'N/A',
+                status: record ? record.status : "Not Marked",
+                marked_at: record ? record.marked_at : null,
+                is_edited: record ? record.is_edited : false,
+                edit_note: record ? record.edit_note : null,
+            };
+        });
+
+        res.json(mergedData);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+/**
+ * @route   GET /api/admin/:adminId/teacher-attendance-backlog
+ * @desc    Get all pending or open teacher attendance backlog requests
+ */
+router.get("/:adminId/teacher-attendance-backlog", async (req, res) => {
+    try {
+        const db = getDB(req);
+
+        // Fetch backlogs, optionally filtered by status if provided in query
+        const statusFilter = req.query.status ? { status: req.query.status } : { status: { $in: ["Pending", "Open"] } };
+
+        const requests = await db.collection("teacher_attendance_backlog")
+            .find(statusFilter)
+            .sort({ requested_at: -1 })
+            .toArray();
+
+        // Fetch teacher names to enrich data
+        const teacherIds = [...new Set(requests.map(r => r.teacher_id))];
+        const teachers = await db.collection("teachers").find({ teacher_id: { $in: teacherIds } }).toArray();
+        const teacherMap = {};
+        teachers.forEach(t => {
+            teacherMap[t.teacher_id] = t.personal_details?.name || `${t.personal_details?.first_name || ''} ${t.personal_details?.last_name || ''}`.trim() || 'Unknown';
+        });
+
+        const enrichedRequests = requests.map(r => ({
+            ...r,
+            teacher_name: teacherMap[r.teacher_id] || "Unknown Teacher"
+        }));
+
+        res.json(enrichedRequests);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+/**
+ * @route   POST /api/admin/:adminId/teacher-attendance-backlog/:requestId/approve
+ * @desc    Approve/Reject to open a teacher's attendance backlog window
+ */
+router.post("/:adminId/teacher-attendance-backlog/:requestId/approve", async (req, res) => {
+    try {
+        const db = getDB(req);
+        const { requestId } = req.params;
+        const { status, remarks } = req.body; // "Open" (Approved) or "Rejected"
+
+        if (!["Open", "Rejected", "Closed"].includes(status)) {
+            return res.status(400).json({ message: "Invalid status" });
+        }
+
+        const result = await db.collection("teacher_attendance_backlog").updateOne(
+            { _id: new ObjectId(requestId) },
+            {
+                $set: {
+                    status,
+                    admin_remarks: remarks,
+                    processed_at: new Date(),
+                    processed_by: req.params.adminId
+                }
+            }
+        );
+
+        if (result.matchedCount === 0) {
+            return res.status(404).json({ message: "Backlog request not found" });
+        }
+
+        res.json({ message: `Teacher backlog request marked as ${status}` });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

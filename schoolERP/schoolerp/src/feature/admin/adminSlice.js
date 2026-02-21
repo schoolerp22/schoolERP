@@ -197,6 +197,36 @@ export const approveTeacherAttendanceBacklog = createAsyncThunk(
     }
 );
 
+// ==================== TEACHER LEAVES ADMIN ====================
+
+export const getTeacherLeaves = createAsyncThunk(
+    "admin/getTeacherLeaves",
+    async ({ adminId, status }, { rejectWithValue }) => {
+        try {
+            const query = status ? `?status=${status}` : '';
+            const response = await axios.get(`${API_URL}/${adminId}/teacher-leaves${query}`);
+            return response.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data || error.message);
+        }
+    }
+);
+
+export const approveTeacherLeave = createAsyncThunk(
+    "admin/approveTeacherLeave",
+    async ({ adminId, leaveId, status, remarks }, { rejectWithValue }) => {
+        try {
+            const response = await axios.post(`${API_URL}/${adminId}/teacher-leaves/${leaveId}/approve`, {
+                status,
+                remarks
+            });
+            return response.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data || error.message);
+        }
+    }
+);
+
 // ==================== REPORTS & ANALYTICS ====================
 
 export const getTeacherReports = createAsyncThunk(
@@ -299,9 +329,10 @@ const initialState = {
     classWiseAnalytics: [],
     subjectWiseAnalytics: [],
 
-    // Teacher Attendance Admin
+    // Teacher Attendance & Leaves Admin
     teachersAttendanceData: [],
     teacherAttendanceBacklogs: [],
+    teacherLeaveRequests: [],
 
     // UI State
     loading: false,
@@ -358,6 +389,33 @@ const adminSlice = createSlice({
                 state.teachersPagination = action.payload.pagination;
             })
             .addCase(getAllTeachers.rejected, (state, action) => {
+                state.loading = false;
+                state.error = action.payload;
+            })
+
+            // Teacher Leaves Admin
+            .addCase(getTeacherLeaves.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+            })
+            .addCase(getTeacherLeaves.fulfilled, (state, action) => {
+                state.loading = false;
+                state.teacherLeaveRequests = action.payload;
+            })
+            .addCase(getTeacherLeaves.rejected, (state, action) => {
+                state.loading = false;
+                state.error = action.payload;
+            })
+            .addCase(approveTeacherLeave.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+            })
+            .addCase(approveTeacherLeave.fulfilled, (state, action) => {
+                state.loading = false;
+                state.success = true;
+                state.successMessage = action.payload.message;
+            })
+            .addCase(approveTeacherLeave.rejected, (state, action) => {
                 state.loading = false;
                 state.error = action.payload;
             })

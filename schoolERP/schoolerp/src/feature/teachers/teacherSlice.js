@@ -483,6 +483,50 @@ export const requestSelfAttendanceBacklog = createAsyncThunk(
   }
 );
 
+// Get Self Attendance Backlogs History
+export const getSelfAttendanceBacklogs = createAsyncThunk(
+  "teacher/getSelfAttendanceBacklogs",
+  async (teacherId, { rejectWithValue }) => {
+    try {
+      const response = await axios.get(`${API_URL}/${teacherId}/self-attendance-backlog`);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+// ==========================================
+// TEACHER LEAVES TO ADMIN
+// ==========================================
+
+export const applyForSelfLeave = createAsyncThunk(
+  "teacher/applyForSelfLeave",
+  async ({ teacherId, leaveData }, { rejectWithValue }) => {
+    try {
+      const config = { headers: { "Content-Type": "multipart/form-data" } };
+      const response = await axios.post(`${API_URL}/${teacherId}/leave`, leaveData, config);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+export const getSelfLeaves = createAsyncThunk(
+  "teacher/getSelfLeaves",
+  async (teacherId, { rejectWithValue }) => {
+    try {
+      const response = await axios.get(`${API_URL}/${teacherId}/leaves`);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+// ==========================================
+
 const initialState = {
   profile: getInitialProfile(),
   students: [],
@@ -504,8 +548,12 @@ const initialState = {
   classComparison: [],
   timetable: null,
 
+  // my leaves state
+  myLeavesHistory: [],
+
   // self attendance state
   selfAttendanceHistory: [],
+  selfAttendanceBacklogs: [],
   selfBacklogStatus: null,
 
   loadings: {
@@ -587,7 +635,10 @@ const teacherSlice = createSlice({
       state.classComparison = [];
 
       state.selfAttendanceHistory = [];
+      state.selfAttendanceBacklogs = [];
       state.selfBacklogStatus = null;
+
+      state.myLeavesHistory = [];
 
       state.error = null;
       state.success = false;
@@ -984,6 +1035,45 @@ const teacherSlice = createSlice({
       .addCase(getTimetable.rejected, (state, action) => {
         state.loadings.timetable = false;
         state.error = action.payload;
+      })
+      // Get Self Attendance Backlogs
+      .addCase(getSelfAttendanceBacklogs.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(getSelfAttendanceBacklogs.fulfilled, (state, action) => {
+        state.loading = false;
+        state.selfAttendanceBacklogs = action.payload;
+      })
+      .addCase(getSelfAttendanceBacklogs.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // Teacher Leaves
+      .addCase(applyForSelfLeave.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(applyForSelfLeave.fulfilled, (state, action) => {
+        state.loading = false;
+        state.success = true;
+        state.successMessage = action.payload.message;
+      })
+      .addCase(applyForSelfLeave.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload?.message || "Failed to apply for leave";
+      })
+      .addCase(getSelfLeaves.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(getSelfLeaves.fulfilled, (state, action) => {
+        state.loading = false;
+        state.myLeavesHistory = action.payload;
+      })
+      .addCase(getSelfLeaves.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload?.message || "Failed to fetch leave history";
       });
   },
 });

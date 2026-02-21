@@ -2,7 +2,7 @@ import React from "react";
 import { useDispatch } from "react-redux";
 import { logout } from "../../../feature/auth/authSlice";
 import {
-  Home, BookOpen, Calendar, Bus, FileText, Bell, TrendingUp, DollarSign, LogOut, CheckCircle, Menu, X
+  Home, BookOpen, Calendar, Bus, FileText, Bell, TrendingUp, DollarSign, LogOut, CheckCircle, Menu, X, MessageSquare
 } from "lucide-react";
 import LogoutConfirmModal from "../../common/LogoutConfirmModal";
 
@@ -21,7 +21,8 @@ const menuItems = [
   { id: "fees", label: "Fees", icon: DollarSign },
   { id: "transport", label: "Transport", icon: Bus },
   { id: "timetable", label: "Timetable", icon: Calendar },
-  { id: "leave", label: "Leave Application", icon: CheckCircle }, // Added Leave Option
+  { id: "leaves", label: "Leave Application", icon: CheckCircle }, // Fixed ID to match dashboard
+  { id: "class-chat", label: "Class Chat", icon: MessageSquare },
   { id: "announcements", label: "Announcements", icon: Bell },
 ];
 
@@ -64,7 +65,7 @@ const Sidebar = ({ profile, currentView, onViewChange, sidebarOpen, onToggleSide
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto space-y-1 px-4">
+        <nav className="flex-1 overflow-y-auto custom-scrollbar space-y-1 px-4">
           {menuItems.map((item) => {
             const Icon = item.icon;
             return (

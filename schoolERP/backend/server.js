@@ -8,6 +8,7 @@ import studentRoutes from "./routes/studentRoutes.js";
 import teacherResultsRoutes from './routes/teacher-results.js';
 import studentResultsRoutes from './routes/student-results.js';
 import adminRoutes from './routes/adminRoutes.js';
+import chatRoutes from './routes/chatRoutes.js';
 dotenv.config();
 
 const app = express();
@@ -41,6 +42,7 @@ const startServer = async () => {
     app.use("/api/student", studentResultsRoutes);
 
     app.use("/api/admin", adminRoutes);
+    app.use("/api/chat", chatRoutes);
 
 
     // Error handling middleware

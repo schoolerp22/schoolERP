@@ -36,11 +36,17 @@ router.get("/:adminId/dashboard-stats", async (req, res) => {
         );
         const totalClasses = uniqueClasses.size;
 
-        // Attendance today
+        // Attendance today (Students)
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const attendanceToday = await db.collection("attendance").countDocuments({
             date: { $gte: today }
+        });
+
+        // Teacher Attendance today
+        const teacherAttendanceToday = await db.collection("teacher_attendance").countDocuments({
+            date: { $gte: today },
+            status: "Present"
         });
 
         // Active homework
@@ -60,6 +66,7 @@ router.get("/:adminId/dashboard-stats", async (req, res) => {
             activeTeachers,
             totalClasses,
             attendanceToday,
+            teacherAttendanceToday,
             activeHomework,
             pendingLeaves
         });
@@ -295,7 +302,10 @@ router.get("/:adminId/teacher-attendance-backlog", async (req, res) => {
         const db = getDB(req);
 
         // Fetch backlogs, optionally filtered by status if provided in query
-        const statusFilter = req.query.status ? { status: req.query.status } : { status: { $in: ["Pending", "Open"] } };
+        let statusFilter = {};
+        if (req.query.status && req.query.status !== 'all') {
+            statusFilter = { status: req.query.status };
+        }
 
         const requests = await db.collection("teacher_attendance_backlog")
             .find(statusFilter)
@@ -1421,5 +1431,80 @@ router.delete("/:adminId/attendance-backlog/:backlogId", async (req, res) => {
     }
 });
 
-export default router;
+// ==================== TEACHER LEAVES MANAGEMENT ====================
 
+/**
+ * @route   GET /api/admin/:adminId/teacher-leaves
+ * @desc    Get all teacher leave requests
+ */
+router.get("/:adminId/teacher-leaves", async (req, res) => {
+    try {
+        const db = getDB(req);
+
+        // Fetch leave requests, optionally filtered by status if provided in query
+        let statusFilter = {};
+        if (req.query.status && req.query.status !== 'all') {
+            statusFilter = { status: req.query.status };
+        }
+
+        const requests = await db.collection("teacher_leave_requests")
+            .find(statusFilter)
+            .sort({ applied_on: -1 })
+            .toArray();
+
+        // Fetch teacher names to enrich data
+        const teacherIds = [...new Set(requests.map(r => r.teacher_id))];
+        const teachers = await db.collection("teachers").find({ teacher_id: { $in: teacherIds } }).toArray();
+        const teacherMap = {};
+        teachers.forEach(t => {
+            teacherMap[t.teacher_id] = t.personal_details?.name || `${t.personal_details?.first_name || ''} ${t.personal_details?.last_name || ''}`.trim() || 'Unknown';
+        });
+
+        const enrichedRequests = requests.map(r => ({
+            ...r,
+            teacher_name: teacherMap[r.teacher_id] || "Unknown Teacher"
+        }));
+
+        res.json(enrichedRequests);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+/**
+ * @route   POST /api/admin/:adminId/teacher-leaves/:leaveId/approve
+ * @desc    Approve or Reject a teacher's leave request
+ */
+router.post("/:adminId/teacher-leaves/:leaveId/approve", async (req, res) => {
+    try {
+        const db = getDB(req);
+        const { leaveId } = req.params;
+        const { status, remarks } = req.body; // "Approved" or "Rejected"
+
+        if (!["Approved", "Rejected"].includes(status)) {
+            return res.status(400).json({ message: "Invalid status" });
+        }
+
+        const result = await db.collection("teacher_leave_requests").updateOne(
+            { _id: new ObjectId(leaveId) },
+            {
+                $set: {
+                    status,
+                    admin_remarks: remarks,
+                    processed_by: req.params.adminId,
+                    processed_at: new Date()
+                }
+            }
+        );
+
+        if (result.matchedCount === 0) {
+            return res.status(404).json({ message: "Leave request not found" });
+        }
+
+        res.json({ message: `Teacher leave request ${status}` });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+export default router;

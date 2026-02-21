@@ -7,6 +7,7 @@ import Header from '../../components/admin/Header/Header';
 import DashboardView from '../../components/admin/DashboardView/DashboardView';
 import TeachersManagementView from '../../components/admin/TeachersManagementView/TeachersManagementView';
 import TeachersAttendanceView from '../../components/admin/TeachersManagementView/TeachersAttendanceView';
+import TeachersLeaveView from '../../components/admin/TeachersManagementView/TeachersLeaveView';
 import StudentsManagementView from '../../components/admin/StudentsManagementView/StudentsManagementView';
 import ReportsView from '../../components/admin/ReportsView/ReportsView';
 import AnalyticsView from '../../components/admin/AnalyticsView/AnalyticsView';
@@ -17,6 +18,7 @@ import TeacherDetailModal from '../../components/admin/TeacherDetailModal/Teache
 import StudentDetailModal from '../../components/admin/StudentDetailModal/StudentDetailModal';
 import AttendanceBacklog from '../../components/admin/AttendanceBacklog/AttendanceBacklog';
 import MarkingSchemeManagement from '../../components/admin/MarkingSchemeManagement/MarkingSchemeManagement';
+import AdminChatView from '../../components/admin/AdminChatView/AdminChatView';
 
 // Redux actions
 import {
@@ -319,6 +321,8 @@ export default function SchoolAdminDashboard() {
         );
       case 'teachers-attendance':
         return <TeachersAttendanceView adminId={adminId} />;
+      case 'teacher-leaves':
+        return <TeachersLeaveView adminId={adminId} />;
       case 'students':
         return (
           <StudentsManagementView
@@ -357,6 +361,8 @@ export default function SchoolAdminDashboard() {
         return <AttendanceBacklog />;
       case 'marking-schemes':
         return <MarkingSchemeManagement />;
+      case 'school-chat':
+        return <AdminChatView adminId={adminId} />;
       default:
         return (
           <DashboardView

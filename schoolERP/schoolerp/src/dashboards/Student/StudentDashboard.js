@@ -14,6 +14,7 @@ import AnnouncementsView from "../../components/student/AnnouncementsView/Announ
 //Import Results Dashboard
 import StudentResultsDashboard from "../../components/student/StudentResultsDashboard/StudentResultsDashboard";
 import LeaveApplication from "../../components/student/LeaveApplication/LeaveApplication";
+import StudentChatView from "../../components/student/StudentChatView/StudentChatView";
 
 
 import {
@@ -116,6 +117,8 @@ const StudentDashboard = () => {
         return <LeaveApplication />;
       case "announcements":
         return <AnnouncementsView announcements={announcements} />;
+      case "class-chat":
+        return <StudentChatView />;
       case "results":
         return (
           <StudentResultsDashboard
@@ -153,7 +156,7 @@ const StudentDashboard = () => {
           </button>
         </header>
 
-        <main className="flex-1 overflow-y-auto bg-gray-50 pb-20 md:p-6 md:pb-6">
+        <main className={`flex-1 min-h-0 ${view === 'class-chat' ? 'overflow-hidden p-0' : 'overflow-y-auto custom-scrollbar bg-gray-50 pb-20 md:p-6 md:pb-6'}`}>
           {renderView()}
         </main>
       </div>

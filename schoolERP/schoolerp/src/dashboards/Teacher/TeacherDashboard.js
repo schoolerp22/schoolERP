@@ -16,6 +16,8 @@ import TimetableManagement from '../../components/teacher/TimetableManagement/Ti
 import ResultsUpload from '../../components/teacher/ResultsUpload/ResultsUpload';
 import TeacherPerformanceDashboard from '../../components/teacher/TeacherPerformanceDashboard/TeacherPerformanceDashboard';
 import MyAttendanceView from '../../components/teacher/MyAttendanceView/MyAttendanceView';
+import MyLeavesView from '../../components/teacher/MyLeavesView/MyLeavesView';
+import TeacherChatView from '../../components/teacher/ClassChatView/TeacherChatView';
 
 import {
   getTeacherProfile,
@@ -127,6 +129,10 @@ const TeacherDashboard = () => {
         return (
           <MyAttendanceView />
         );
+      case 'my-leaves':
+        return (
+          <MyLeavesView />
+        );
       case 'attendance':
         return (
           <AttendanceView
@@ -144,6 +150,7 @@ const TeacherDashboard = () => {
             profile={profile}
           />
         );
+      case 'results':
       case 'results-upload':
         return (
           <ResultsUpload
@@ -180,6 +187,8 @@ const TeacherDashboard = () => {
             selectedClass={selectedClass}
           />
         );
+      case 'class-chat':
+        return <TeacherChatView selectedClass={selectedClass} />;
       default:
         return (
           <DashboardView
@@ -220,7 +229,7 @@ const TeacherDashboard = () => {
           leaveRequests={leaveRequests}
         />
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-6">
+        <main className={`flex-1 min-h-0 ${currentView === 'class-chat' ? 'overflow-hidden p-0' : 'overflow-y-auto custom-scrollbar p-4 md:p-6 pb-24 md:pb-6'}`}>
           {renderView()}
         </main>
       </div>

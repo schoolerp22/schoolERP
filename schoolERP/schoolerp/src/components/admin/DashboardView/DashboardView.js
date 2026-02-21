@@ -64,16 +64,28 @@ const DashboardView = ({ dashboardStats, onViewChange }) => {
             </div>
 
             {/* Secondary Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 px-4 sm:px-0">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 px-4 sm:px-0">
                 <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-gray-600 text-sm">Attendance Today</p>
+                            <p className="text-gray-600 text-sm">Student Attendance</p>
                             <p className="text-2xl md:text-3xl font-bold text-gray-900 mt-1">
                                 {dashboardStats?.attendanceToday || 0}
                             </p>
                         </div>
                         <Calendar className="text-indigo-500" size={32} />
+                    </div>
+                </div>
+
+                <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-gray-600 text-sm">Teacher Attendance</p>
+                            <p className="text-2xl md:text-3xl font-bold text-gray-900 mt-1">
+                                {dashboardStats?.teacherAttendanceToday || 0}
+                            </p>
+                        </div>
+                        <Calendar className="text-blue-500" size={32} />
                     </div>
                 </div>
 

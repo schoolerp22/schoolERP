@@ -2,6 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Global scrollbar override — applies to ALL elements */
+*::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+    background: rgba(156, 163, 175, 0.4);
+    border-radius: 100px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+    background: rgba(107, 114, 128, 0.6);
+}
+
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(156, 163, 175, 0.4) transparent;
+}
+
 .hide-scrollbar::-webkit-scrollbar {
     display: none;
 }
@@ -11,4 +35,50 @@
     /* IE and Edge */
     scrollbar-width: none;
     /* Firefox */
+}
+
+/* Beautiful custom scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(156, 163, 175, 0.4);
+    border-radius: 100px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(107, 114, 128, 0.6);
+}
+
+.custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(156, 163, 175, 0.4) transparent;
+}
+
+/* Chat messages scrollbar — even thinner */
+.chat-scrollbar::-webkit-scrollbar {
+    width: 4px;
+}
+
+.chat-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.chat-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(156, 163, 175, 0.3);
+    border-radius: 100px;
+}
+
+.chat-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(107, 114, 128, 0.5);
+}
+
+.chat-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(156, 163, 175, 0.3) transparent;
 }

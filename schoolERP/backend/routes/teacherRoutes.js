@@ -162,6 +162,54 @@ router.get("/:teacherId/self-backlog-status/:date", async (req, res) => {
   }
 });
 
+// @route   GET /api/teacher/:teacherId/self-backlog-status/:date
+// @desc    Check if a teacher can mark their own attendance for a past date
+router.get("/:teacherId/self-backlog-status/:date", async (req, res) => {
+  try {
+    const db = getDB(req);
+    const { teacherId, date } = req.params;
+
+    const [year, month, day] = date.split('-').map(num => parseInt(num, 10));
+    const startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+    const endOfDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+
+    const localDate = new Date(date);
+    localDate.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // 1. Future date
+    if (localDate > today) {
+      return res.json({ allowed: false, reason: "Future dates are not allowed", isFuture: true });
+    }
+
+    // 2. Today
+    if (localDate.getTime() === today.getTime()) {
+      return res.json({ allowed: true, reason: "Today's attendance", isToday: true });
+    }
+
+    // 3. Past date - Check teacher backlog
+    const backlog = await db.collection("teacher_attendance_backlog").findOne({
+      status: "Open",
+      teacher_id: teacherId,
+      start_date: { $lte: startOfDay },
+      end_date: { $gte: endOfDay }
+    });
+
+    if (backlog) {
+      return res.json({
+        allowed: true,
+        reason: `Backlog open: ${backlog.admin_remarks || 'Approved'}`,
+        backlog: { start_date: backlog.start_date, end_date: backlog.end_date, reason: backlog.reason }
+      });
+    }
+
+    return res.json({ allowed: false, reason: "Backlog window not open for this date", isPast: true });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // @route   GET /api/teacher/:teacherId/self-attendance
 // @desc    Get teacher's own attendance history
 router.get("/:teacherId/self-attendance", async (req, res) => {
@@ -298,6 +346,24 @@ router.post("/:teacherId/self-attendance-backlog", async (req, res) => {
     await db.collection("teacher_attendance_backlog").insertOne(request);
 
     res.status(201).json({ message: "Backlog request submitted to Admin successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   GET /api/teacher/:teacherId/self-attendance-backlog
+// @desc    Get teacher's past backlog requests
+router.get("/:teacherId/self-attendance-backlog", async (req, res) => {
+  try {
+    const db = getDB(req);
+    const { teacherId } = req.params;
+
+    const requests = await db.collection("teacher_attendance_backlog")
+      .find({ teacher_id: teacherId })
+      .sort({ requested_at: -1 })
+      .toArray();
+
+    res.json(requests);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -1566,5 +1632,64 @@ function calculateTrend(percentages) {
   if (decreasing > increasing) return "declining";
   return "stable";
 }
+
+// ==========================================
+// TEACHER LEAVES ROUTES
+// ==========================================
+
+// @route   POST /api/teacher/:teacherId/leave
+// @desc    Apply for a teacher leave
+router.post("/:teacherId/leave", upload.single('attachment'), async (req, res) => {
+  try {
+    const db = getDB(req);
+    const { teacherId } = req.params;
+    const { start_date, end_date, reason } = req.body;
+
+    if (!start_date || !end_date || !reason) {
+      return res.status(400).json({ message: "Start date, end date, and reason are required" });
+    }
+
+    const leaveRequest = {
+      teacher_id: teacherId,
+      school_id: req.body.school_id || null,
+      start_date: new Date(start_date),
+      end_date: new Date(end_date),
+      reason,
+      attachment_url: req.file ? `/uploads/leaves/${req.file.filename}` : null,
+      status: "Pending", // "Pending", "Approved", "Rejected"
+      applied_on: new Date(),
+      admin_remarks: null,
+      processed_by: null,
+      processed_at: null
+    };
+
+    const result = await db.collection("teacher_leave_requests").insertOne(leaveRequest);
+
+    res.status(201).json({
+      message: "Leave application submitted successfully",
+      leaveId: result.insertedId
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   GET /api/teacher/:teacherId/leaves
+// @desc    Get a teacher's own leave history
+router.get("/:teacherId/leaves", async (req, res) => {
+  try {
+    const db = getDB(req);
+    const { teacherId } = req.params;
+
+    const leaves = await db.collection("teacher_leave_requests")
+      .find({ teacher_id: teacherId })
+      .sort({ applied_on: -1 })
+      .toArray();
+
+    res.json(leaves);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
 
 export default router;

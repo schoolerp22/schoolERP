@@ -4,17 +4,24 @@ import {
     getSelfAttendance,
     checkSelfBacklogStatus,
     markSelfAttendance,
-    requestSelfAttendanceBacklog
+    requestSelfAttendanceBacklog,
+    getSelfAttendanceBacklogs
 } from '../../../feature/teachers/teacherSlice';
 
 const MyAttendanceView = () => {
     const dispatch = useDispatch();
-    const { profile, selfAttendanceHistory, loading } = useSelector((state) => state.teacher);
+    const { profile, selfAttendanceHistory, selfAttendanceBacklogs, loading } = useSelector((state) => state.teacher);
 
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
     const [status, setStatus] = useState("Present");
     const [reason, setReason] = useState("");
+
+    // Backlog Modal State
+    const [showBacklogModal, setShowBacklogModal] = useState(false);
+    const [backlogStartDate, setBacklogStartDate] = useState(new Date().toISOString().split('T')[0]);
+    const [backlogEndDate, setBacklogEndDate] = useState(new Date().toISOString().split('T')[0]);
     const [backlogReason, setBacklogReason] = useState("");
+
     const [checkStatus, setCheckStatus] = useState(null); // { allowed, reason, isPast, isFuture, requiresBacklog }
 
     const fetchHistory = useCallback(() => {
@@ -37,6 +44,7 @@ const MyAttendanceView = () => {
     useEffect(() => {
         if (profile?.teacher_id) {
             fetchHistory();
+            dispatch(getSelfAttendanceBacklogs(profile.teacher_id));
         }
     }, [profile, fetchHistory]);
 
@@ -75,16 +83,19 @@ const MyAttendanceView = () => {
             await dispatch(requestSelfAttendanceBacklog({
                 teacherId: profile.teacher_id,
                 requestData: {
-                    start_date: selectedDate,
-                    end_date: selectedDate,
+                    start_date: backlogStartDate,
+                    end_date: backlogEndDate,
                     reason: backlogReason
                 }
             })).unwrap();
 
             setBacklogReason("");
+            setShowBacklogModal(false);
+            dispatch(getSelfAttendanceBacklogs(profile.teacher_id));
             alert("Backlog request submitted to Admin.");
         } catch (error) {
             console.error("Failed to request backlog", error);
+            alert("Failed to submit request.");
         }
     };
 
@@ -116,22 +127,9 @@ const MyAttendanceView = () => {
 
                     {checkStatus?.isPast && !checkStatus?.allowed && (
                         <div className="p-4 bg-yellow-50 rounded-lg mb-4">
-                            <p className="text-yellow-700 text-sm mb-3">
-                                The window to mark attendance for this past date has closed. You must request Admin approval.
+                            <p className="text-yellow-700 text-sm">
+                                The window to mark attendance for this date has closed. You must request an Attendance Backlog from the Admin.
                             </p>
-                            <form onSubmit={handleRequestBacklog}>
-                                <textarea
-                                    className="w-full text-sm border-gray-300 rounded-lg shadow-sm mb-2"
-                                    placeholder="Reason for late attendance..."
-                                    rows="2"
-                                    required
-                                    value={backlogReason}
-                                    onChange={(e) => setBacklogReason(e.target.value)}
-                                ></textarea>
-                                <button type="submit" disabled={loading} className="px-4 py-2 bg-yellow-600 text-white text-sm font-medium rounded-lg hover:bg-yellow-700 disabled:opacity-50">
-                                    Send Request to Admin
-                                </button>
-                            </form>
                         </div>
                     )}
 
@@ -210,6 +208,101 @@ const MyAttendanceView = () => {
                     )}
                 </div>
 
+            </div>
+
+            {/* BACKLOG REQUEST MODAL/SECTION */}
+            {showBacklogModal ? (
+                <div className="mt-6 bg-white rounded-xl shadow-sm border border-yellow-200 p-6">
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-lg font-semibold text-gray-800">Request Attendance Backlog</h2>
+                        <button onClick={() => setShowBacklogModal(false)} className="text-gray-500 hover:text-gray-700 text-sm">Cancel</button>
+                    </div>
+
+                    <form onSubmit={handleRequestBacklog} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
+                            <input
+                                type="date"
+                                required
+                                className="w-full border-gray-300 rounded-lg shadow-sm focus:border-yellow-500 focus:ring-yellow-500"
+                                value={backlogStartDate}
+                                onChange={(e) => setBacklogStartDate(e.target.value)}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
+                            <input
+                                type="date"
+                                required
+                                className="w-full border-gray-300 rounded-lg shadow-sm focus:border-yellow-500 focus:ring-yellow-500"
+                                value={backlogEndDate}
+                                onChange={(e) => setBacklogEndDate(e.target.value)}
+                            />
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Reason</label>
+                            <textarea
+                                className="w-full text-sm border-gray-300 rounded-lg shadow-sm focus:border-yellow-500 focus:ring-yellow-500"
+                                placeholder="Explain why you could not mark attendance on time..."
+                                rows="2"
+                                required
+                                value={backlogReason}
+                                onChange={(e) => setBacklogReason(e.target.value)}
+                            ></textarea>
+                        </div>
+                        <div className="md:col-span-2">
+                            <button type="submit" disabled={loading} className="w-full md:w-auto px-6 py-2.5 bg-yellow-600 text-white font-medium rounded-lg hover:bg-yellow-700 disabled:opacity-50 transition-colors">
+                                {loading ? "Sending..." : "Send Request to Admin"}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            ) : (
+                <div className="mt-6 text-center">
+                    <button
+                        onClick={() => setShowBacklogModal(true)}
+                        className="text-sm font-medium text-yellow-600 hover:text-yellow-700 underline"
+                    >
+                        Need to mark attendance for a past date? Request a Backlog
+                    </button>
+                </div>
+            )}
+
+            {/* BACKLOGS HISTORY SECTION */}
+            <div className="mt-8 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <h2 className="text-lg font-semibold text-gray-800 mb-4">My Backlog Requests</h2>
+
+                {(!selfAttendanceBacklogs || selfAttendanceBacklogs.length === 0) ? (
+                    <p className="text-gray-500 text-sm">You have not requested any backlogs yet.</p>
+                ) : (
+                    <div className="space-y-3">
+                        {selfAttendanceBacklogs.map((backlog) => (
+                            <div key={backlog._id} className="flex flex-col md:flex-row md:items-center justify-between p-4 border border-gray-100 rounded-lg bg-gray-50 gap-4">
+                                <div>
+                                    <p className="font-medium text-gray-800 text-sm mb-1">
+                                        For: {new Date(backlog.start_date).toLocaleDateString('en-GB')} - {new Date(backlog.end_date).toLocaleDateString('en-GB')}
+                                    </p>
+                                    <p className="text-sm text-gray-600">Reason: {backlog.reason}</p>
+                                    {backlog.admin_remarks && (
+                                        <p className="text-xs text-gray-500 mt-1 italic">Admin: "{backlog.admin_remarks}"</p>
+                                    )}
+                                </div>
+                                <div className="text-right flex flex-col items-end">
+                                    <span className={`px-3 py-1 text-xs font-semibold rounded-full mb-2 ${backlog.status === 'Open' ? 'bg-green-100 text-green-700' :
+                                            backlog.status === 'Rejected' ? 'bg-red-100 text-red-700' :
+                                                backlog.status === 'Closed' ? 'bg-gray-200 text-gray-700' :
+                                                    'bg-yellow-100 text-yellow-700'
+                                        }`}>
+                                        {backlog.status === 'Open' ? 'Approved' : backlog.status}
+                                    </span>
+                                    <span className="text-xs text-gray-400">
+                                        Requested: {new Date(backlog.requested_at).toLocaleDateString('en-GB')}
+                                    </span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     );

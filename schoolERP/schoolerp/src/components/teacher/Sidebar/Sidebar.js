@@ -3,7 +3,8 @@ import { useDispatch } from 'react-redux';
 import { logout } from '../../../feature/auth/authSlice';
 import {
   Users, Calendar, BookOpen, Bell, FileText,
-  Home, Menu, X, Upload, BarChart3, LogOut
+  Home, Menu, X, Upload, BarChart3, LogOut,
+  ClipboardCheck, CalendarDays, Target, Clock, MessageSquare
 } from 'lucide-react';
 import LogoutConfirmModal from '../../common/LogoutConfirmModal';
 
@@ -13,13 +14,14 @@ const Sidebar = ({ profile, currentView, onViewChange, sidebarOpen, onToggleSide
 
   const navigationItems = [
     { id: 'dashboard', icon: Home, label: 'Dashboard' },
-    { id: 'my-attendance', icon: Calendar, label: 'My Attendance' },
-    { id: 'students', icon: Users, label: 'My Students' },
-    { id: 'attendance', icon: Calendar, label: 'Student Attendance' },
+    { id: 'my-attendance', icon: ClipboardCheck, label: 'My Attendance' },
+    { id: 'my-leaves', icon: FileText, label: 'My Leaves' },
+    { id: 'attendance', icon: CalendarDays, label: 'Student Attendance' },
+    { id: 'leaves', icon: Calendar, label: 'Leave Approvals' },
     { id: 'homework', icon: BookOpen, label: 'Homework' },
     { id: 'announcements', icon: Bell, label: 'Announcements' },
-    { id: 'leaves', icon: FileText, label: 'Leave Requests' },
-    { id: 'timetable', icon: Calendar, label: 'Manage Timetable' },
+    { id: 'class-chat', icon: MessageSquare, label: 'Class Chat' },
+    { id: 'timetable', icon: Clock, label: 'Timetable' },
     {
       id: 'results-upload',
       icon: Upload,
@@ -58,7 +60,7 @@ const Sidebar = ({ profile, currentView, onViewChange, sidebarOpen, onToggleSide
           </button>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2">
+        <nav className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-2">
           {navigationItems.map((item) => (
             <button
               key={item.id}

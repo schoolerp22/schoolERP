@@ -9,7 +9,7 @@ const AdminChatView = ({ adminId }) => {
     const [classes, setClasses] = useState([]);
     const [selectedClass, setSelectedClass] = useState('');
     const [selectedSection, setSelectedSection] = useState('');
-    const [loadingClasses, setLoadingClasses] = useState(true);
+    // loading state managed internally by useEffect
 
     const currentUser = {
         id: adminId || 'admin',
@@ -33,11 +33,8 @@ const AdminChatView = ({ adminId }) => {
                     { class: '8', sections: ['A', 'D'] }
                 ];
                 setClasses(demoClasses);
-                setLoadingClasses(false);
-                console.log('loadingClasses',loadingClasses)
             } catch (error) {
                 console.error("Failed to load classes", error);
-                setLoadingClasses(false);
             }
         };
         fetchClasses();

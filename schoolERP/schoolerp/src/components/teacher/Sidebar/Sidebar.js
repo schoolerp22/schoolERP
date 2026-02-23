@@ -1,13 +1,14 @@
 import React from 'react';
 import { useDispatch } from 'react-redux';
 import { logout } from '../../../feature/auth/authSlice';
-import { Calendar, BookOpen, Bell, FileText,
+import {
+  Calendar, BookOpen, Bell, FileText,
   Home, Menu, X, Upload, BarChart3, LogOut,
   ClipboardCheck, CalendarDays, Clock, MessageSquare
 } from 'lucide-react';
 import LogoutConfirmModal from '../../common/LogoutConfirmModal';
 
-const Sidebar = ({ profile, currentView, onViewChange, sidebarOpen, onToggleSidebar }) => {
+const Sidebar = ({ profile, currentView, onViewChange, sidebarOpen, onToggleSidebar, unreadCount = 0 }) => {
   const dispatch = useDispatch();
   const [showLogoutModal, setShowLogoutModal] = React.useState(false);
 
@@ -60,24 +61,44 @@ const Sidebar = ({ profile, currentView, onViewChange, sidebarOpen, onToggleSide
         </div>
 
         <nav className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-2">
-          {navigationItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => {
-                onViewChange(item.id);
-                if (window.innerWidth < 768 && sidebarOpen) {
-                  onToggleSidebar();
-                }
-              }}
-              className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${currentView === item.id
-                ? 'bg-indigo-800 text-white'
-                : 'hover:bg-indigo-800 text-indigo-200'
-                }`}
-            >
-              <item.icon size={20} className={!sidebarOpen ? 'md:mx-auto' : ''} />
-              {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
-            </button>
-          ))}
+          {navigationItems.map((item) => {
+            const showUnread = item.id === 'class-chat' && unreadCount > 0;
+            return (
+              <button
+                key={item.id}
+                onClick={() => {
+                  onViewChange(item.id);
+                  if (window.innerWidth < 768 && sidebarOpen) {
+                    onToggleSidebar();
+                  }
+                }}
+                className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${currentView === item.id
+                  ? 'bg-indigo-800 text-white'
+                  : 'hover:bg-indigo-800 text-indigo-200'
+                  }`}
+              >
+                <div className="relative shrink-0">
+                  <item.icon size={20} className={!sidebarOpen ? 'md:mx-auto' : ''} />
+                  {!sidebarOpen && showUnread && (
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
+                </div>
+                {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
+                {sidebarOpen && showUnread && (
+                  <span className="ml-auto min-w-[20px] h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1.5 animate-pulse">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+                {sidebarOpen && item.badge && !showUnread && (
+                  <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded font-bold ${item.badgeColor}`}>
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </nav>
 
         <div className="p-4 border-t border-indigo-800">

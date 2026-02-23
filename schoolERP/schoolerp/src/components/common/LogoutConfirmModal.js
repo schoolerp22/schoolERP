@@ -1,12 +1,13 @@
 import React from 'react';
+import ReactDOM from 'react-dom';
 import { LogOut, X } from 'lucide-react';
 
 const LogoutConfirmModal = ({ isOpen, onClose, onConfirm }) => {
     if (!isOpen) return null;
 
-    return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden animate-in zoom-in-95 duration-200">
+    return ReactDOM.createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden">
                 <div className="p-6">
                     <div className="flex items-center justify-between mb-4">
                         <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center text-red-600">
@@ -23,7 +24,7 @@ const LogoutConfirmModal = ({ isOpen, onClose, onConfirm }) => {
                     <h3 className="text-xl font-bold text-gray-900 mb-2">
                         Confirm Logout
                     </h3>
-                    <p className="text-gray-600 mb-8 lowercase first-letter:uppercase">
+                    <p className="text-gray-600 mb-8">
                         Are you sure you want to log out of your session? You will need to login again to access your dashboard.
                     </p>
 
@@ -43,8 +44,10 @@ const LogoutConfirmModal = ({ isOpen, onClose, onConfirm }) => {
                     </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 
 export default LogoutConfirmModal;
+

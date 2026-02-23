@@ -15,6 +15,8 @@ import AnnouncementsView from "../../components/student/AnnouncementsView/Announ
 import StudentResultsDashboard from "../../components/student/StudentResultsDashboard/StudentResultsDashboard";
 import LeaveApplication from "../../components/student/LeaveApplication/LeaveApplication";
 import StudentChatView from "../../components/student/StudentChatView/StudentChatView";
+import useGlobalPresence from "../../hooks/useGlobalPresence";
+import { useUnreadCount } from "../../hooks/useUnreadCount";
 
 
 import {
@@ -37,11 +39,17 @@ const StudentDashboard = () => {
   const { profile, homework, attendance, exams, payments, transport, timetable, announcements, results, analytics, loading, error } =
     useSelector((state) => state.student);
   const { user } = useSelector((state) => state.auth);
-  console.log("user------sss", user);
+  const studentId = user?.admission_no || user?.id;
+
+  // Global presence — student shows online in all chat rooms
+  useGlobalPresence(studentId);
+
+  // Unread message count for sidebar badge
+  const { unreadCount } = useUnreadCount(studentId);
+
   const [view, setView] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [academicYear, setAcademicYear] = useState("2024-25"); // Default year
-  const studentId = user?.admission_no || user?.id; // Replace with auth id from context/redux
+  const [academicYear, setAcademicYear] = useState("2024-25");
 
   useEffect(() => {
     console.log("🔄 Loading student data for:", studentId);
@@ -142,6 +150,7 @@ const StudentDashboard = () => {
         onViewChange={setView}
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+        unreadCount={unreadCount}
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">

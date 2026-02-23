@@ -18,6 +18,8 @@ import TeacherPerformanceDashboard from '../../components/teacher/TeacherPerform
 import MyAttendanceView from '../../components/teacher/MyAttendanceView/MyAttendanceView';
 import MyLeavesView from '../../components/teacher/MyLeavesView/MyLeavesView';
 import TeacherChatView from '../../components/teacher/ClassChatView/TeacherChatView';
+import useGlobalPresence from '../../hooks/useGlobalPresence';
+import { useUnreadCount } from '../../hooks/useUnreadCount';
 
 import {
   getTeacherProfile,
@@ -33,7 +35,6 @@ import {
 const TeacherDashboard = () => {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
-  console.log("TeacherDashboard Render. User:", user);
   const {
     profile,
     // students, 
@@ -48,11 +49,16 @@ const TeacherDashboard = () => {
   } = useSelector((state) => state.teacher);
 
   const [currentView, setCurrentView] = useState('dashboard');
-  const [sidebarOpen, setSidebarOpen] = useState(false); // Default false for mobile first, can adjust based on screen size later
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedClass, setSelectedClass] = useState('');
 
   const teacherId = user?.teacher_id;
-  console.log("Derived teacherId:", teacherId);
+
+  // Global presence — teacher shows online in all chat rooms
+  useGlobalPresence(teacherId);
+
+  // Unread message count for sidebar badge
+  const { unreadCount } = useUnreadCount(teacherId);
 
   useEffect(() => {
     if (teacherId) {
@@ -218,6 +224,7 @@ const TeacherDashboard = () => {
         onViewChange={setCurrentView}
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+        unreadCount={unreadCount}
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">

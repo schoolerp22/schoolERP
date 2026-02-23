@@ -1,13 +1,18 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useChat } from '../../../hooks/useChat';
-import { Send, Paperclip, Image as ImageIcon, FileText, X, Settings, Users, Loader, Check, Pencil, Trash2, SmilePlus, Eye } from 'lucide-react';
+import { useWebRTC } from '../../../hooks/useWebRTC';
+import CallModal from '../CallModal/CallModal';
+import { Send, Paperclip, Image as ImageIcon, FileText, X, Settings, Users, Loader, Check, Pencil, Trash2, SmilePlus, Eye, Search, Phone, Video } from 'lucide-react';
+import './ClassChat.css';
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '🙏'];
 
-const ClassChat = ({ classNum, section, currentUser }) => {
+const ClassChat = ({ classNum, section, currentUser, directRoomId }) => {
     const {
         messages,
         chatSettings,
+        participants,
+        roomData,
         loading,
         error,
         sendMessage,
@@ -15,8 +20,21 @@ const ClassChat = ({ classNum, section, currentUser }) => {
         deleteMessage,
         reactToMessage,
         markSeen,
-        toggleStudentMessages
-    } = useChat(classNum, section, currentUser.id, currentUser.role);
+        toggleStudentMessages,
+        addParticipant,
+        removeParticipant,
+        isUserOnline,
+        onlineCount
+    } = useChat(classNum || null, section || null, currentUser.id, currentUser.role, currentUser.name, directRoomId);
+
+    const isGroupChat = !!directRoomId;
+    const roomDisplayName = isGroupChat
+        ? (roomData?.groupName || 'Group Chat')
+        : `Class ${classNum} - ${section} Chat`;
+
+    // WebRTC calling
+    const webRTC = useWebRTC(currentUser.id, currentUser.name);
+    const [showCallPicker, setShowCallPicker] = useState(null); // null | 'audio' | 'video'
 
     const [newMessage, setNewMessage] = useState('');
     const [selectedFile, setSelectedFile] = useState(null);
@@ -28,7 +46,7 @@ const ClassChat = ({ classNum, section, currentUser }) => {
     const [editText, setEditText] = useState('');
 
     // Context menu state
-    const [contextMenu, setContextMenu] = useState(null); // { msgId, x, y }
+    const [contextMenu, setContextMenu] = useState(null);
 
     // Emoji picker state
     const [emojiPickerMsgId, setEmojiPickerMsgId] = useState(null);
@@ -38,6 +56,16 @@ const ClassChat = ({ classNum, section, currentUser }) => {
 
     // Delete confirm
     const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+
+    // Participants panel state
+    const [showParticipants, setShowParticipants] = useState(false);
+    const [participantsTab, setParticipantsTab] = useState('members');
+    const [addClassNum, setAddClassNum] = useState('');
+    const [addSection, setAddSection] = useState('');
+    const [availableStudents, setAvailableStudents] = useState([]);
+    const [availableTeachers, setAvailableTeachers] = useState([]);
+    const [loadingAvailable, setLoadingAvailable] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
     const messagesEndRef = useRef(null);
     const fileInputRef = useRef(null);
@@ -52,7 +80,6 @@ const ClassChat = ({ classNum, section, currentUser }) => {
         scrollToBottom();
     }, [messages]);
 
-    // Mark unseen messages as seen
     useEffect(() => {
         if (!messages.length || !currentUser.id) return;
         messages.forEach(msg => {
@@ -62,7 +89,6 @@ const ClassChat = ({ classNum, section, currentUser }) => {
         });
     }, [messages, currentUser.id, markSeen]);
 
-    // Close context menu and emoji picker on outside click
     useEffect(() => {
         const handleClick = () => {
             setContextMenu(null);
@@ -73,12 +99,73 @@ const ClassChat = ({ classNum, section, currentUser }) => {
         return () => document.removeEventListener('click', handleClick);
     }, []);
 
-    // Focus edit input
     useEffect(() => {
         if (editingMsgId && editInputRef.current) {
             editInputRef.current.focus();
         }
     }, [editingMsgId]);
+
+    // Fetch students when class/section changes
+    useEffect(() => {
+        if (participantsTab !== 'addStudents' || !addClassNum || !addSection) {
+            setAvailableStudents([]);
+            return;
+        }
+        const fetchStudents = async () => {
+            setLoadingAvailable(true);
+            try {
+                const API_URL = process.env.REACT_APP_API_URL;
+                const res = await fetch(`${API_URL}/api/chat/students/${addClassNum}-${addSection}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setAvailableStudents(data);
+                }
+            } catch (err) {
+                console.error('Failed to fetch students:', err);
+            } finally {
+                setLoadingAvailable(false);
+            }
+        };
+        fetchStudents();
+    }, [addClassNum, addSection, participantsTab]);
+
+    // Fetch teachers
+    useEffect(() => {
+        if (participantsTab !== 'addTeachers') {
+            setAvailableTeachers([]);
+            return;
+        }
+        const fetchTeachers = async () => {
+            setLoadingAvailable(true);
+            try {
+                const API_URL = process.env.REACT_APP_API_URL;
+                const res = await fetch(`${API_URL}/api/chat/teachers`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setAvailableTeachers(data);
+                }
+            } catch (err) {
+                console.error('Failed to fetch teachers:', err);
+            } finally {
+                setLoadingAvailable(false);
+            }
+        };
+        fetchTeachers();
+    }, [participantsTab]);
+
+    // Sort participants: online first, then offline
+    const sortedParticipants = useMemo(() => {
+        return [...participants].sort((a, b) => {
+            const aOnline = isUserOnline(a.id) ? 1 : 0;
+            const bOnline = isUserOnline(b.id) ? 1 : 0;
+            if (bOnline !== aOnline) return bOnline - aOnline;
+            // Then by name
+            return (a.name || '').localeCompare(b.name || '');
+        });
+    }, [participants, isUserOnline]);
+
+    const onlineParticipants = useMemo(() => sortedParticipants.filter(p => isUserOnline(p.id)), [sortedParticipants, isUserOnline]);
+    const offlineParticipants = useMemo(() => sortedParticipants.filter(p => !isUserOnline(p.id)), [sortedParticipants, isUserOnline]);
 
     const handleSend = async (e) => {
         e.preventDefault();
@@ -170,6 +257,23 @@ const ClassChat = ({ classNum, section, currentUser }) => {
         }
     };
 
+    const handleAddParticipant = async (person) => {
+        try {
+            await addParticipant(person.id, person.name, person.role, person.class, person.section);
+        } catch (err) {
+            alert(err.message || 'Failed to add participant');
+        }
+    };
+
+    const handleRemoveParticipant = async (userId) => {
+        if (!window.confirm('Remove this participant from the group?')) return;
+        try {
+            await removeParticipant(userId);
+        } catch (err) {
+            alert(err.message || 'Failed to remove participant');
+        }
+    };
+
     const formatTime = (firebaseTimestamp) => {
         if (!firebaseTimestamp) return '';
         const date = firebaseTimestamp.toDate ? firebaseTimestamp.toDate() : new Date(firebaseTimestamp);
@@ -178,6 +282,60 @@ const ClassChat = ({ classNum, section, currentUser }) => {
 
     const isAdminOrTeacher = currentUser.role === 'admin' || currentUser.role === 'teacher';
     const canChat = isAdminOrTeacher || (chatSettings?.allowStudentMessages && currentUser.role === 'student');
+    const isParticipant = (id) => participants.some(p => p.id === id);
+
+    const filteredStudents = availableStudents.filter(s =>
+        s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        s.id.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    const filteredTeachers = availableTeachers.filter(t =>
+        t.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    const classOptions = ['NUR', 'LKG', 'UKG', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+    const sectionOptions = ['A', 'B', 'C', 'D', 'E'];
+
+    const getInitial = (name) => {
+        if (!name) return '?';
+        return name.charAt(0).toUpperCase();
+    };
+
+    // Render a single participant item
+    const renderParticipantItem = (p, idx) => {
+        const online = isUserOnline(p.id);
+        const displayName = p.name || p.id;
+        const isStudent = p.role === 'student';
+
+        return (
+            <div key={p.id || idx} className="participant-item">
+                <div className="avatar-wrapper">
+                    <div className={`participant-avatar ${p.role || 'student'}`}>
+                        {getInitial(displayName)}
+                    </div>
+                    <span className={`presence-dot ${online ? 'online' : 'offline'}`} />
+                </div>
+                <div className="participant-info">
+                    <div className="name">
+                        {displayName}
+                        {p.id === currentUser.id && <span style={{ color: '#9ca3af', fontSize: 11, marginLeft: 4 }}>(You)</span>}
+                    </div>
+                    <div className="meta">
+                        <span className={`role-badge ${p.role || 'student'}`}>{p.role || 'student'}</span>
+                        {isStudent && <span className="admission-no">ID: {p.id}</span>}
+                        {p.class && <span>Class {p.class}{p.section ? `-${p.section}` : ''}</span>}
+                    </div>
+                </div>
+                {isAdminOrTeacher && p.id !== currentUser.id && (
+                    <button
+                        className="remove-btn"
+                        onClick={() => handleRemoveParticipant(p.id)}
+                    >
+                        Remove
+                    </button>
+                )}
+            </div>
+        );
+    };
 
     if (loading) {
         return (
@@ -201,21 +359,53 @@ const ClassChat = ({ classNum, section, currentUser }) => {
             {/* Chat Header */}
             <div className="bg-white px-4 sm:px-6 py-3 sm:py-4 border-b flex justify-between items-center shrink-0">
                 <div className="min-w-0">
-                    <h2 className="text-base sm:text-lg font-bold text-gray-800 truncate">Class {classNum} - {section} Chat</h2>
+                    <h2 className="text-base sm:text-lg font-bold text-gray-800 truncate">{roomDisplayName}</h2>
                     <p className="text-xs sm:text-sm text-gray-500 flex items-center gap-1">
                         <Users size={14} />
                         {chatSettings?.allowStudentMessages ? 'All members can type' : 'Only Admins/Teachers can type'}
                     </p>
                 </div>
 
-                {isAdminOrTeacher && (
+                <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+                    {/* Call buttons */}
                     <button
-                        onClick={(e) => { e.stopPropagation(); setShowSettings(!showSettings); }}
-                        className="p-2 hover:bg-gray-100 rounded-full transition-colors relative flex-shrink-0"
+                        onClick={() => setShowCallPicker('audio')}
+                        className="p-2 hover:bg-green-50 rounded-full transition-colors flex-shrink-0"
+                        title="Voice Call"
                     >
-                        <Settings size={20} className="text-gray-600" />
+                        <Phone size={18} className="text-green-600" />
                     </button>
-                )}
+                    <button
+                        onClick={() => setShowCallPicker('video')}
+                        className="p-2 hover:bg-blue-50 rounded-full transition-colors flex-shrink-0"
+                        title="Video Call"
+                    >
+                        <Video size={18} className="text-blue-600" />
+                    </button>
+
+                    <button
+                        onClick={() => { setShowParticipants(true); setParticipantsTab('members'); }}
+                        className="participant-count-btn"
+                    >
+                        <Users size={16} />
+                        <span>{participants.length}</span>
+                        {onlineCount > 0 && (
+                            <span className="online-indicator-header">
+                                <span className="online-dot-small" />
+                                {onlineCount}
+                            </span>
+                        )}
+                    </button>
+
+                    {isAdminOrTeacher && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); setShowSettings(!showSettings); }}
+                            className="p-2 hover:bg-gray-100 rounded-full transition-colors relative flex-shrink-0"
+                        >
+                            <Settings size={20} className="text-gray-600" />
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Settings Dropdown */}
@@ -248,6 +438,220 @@ const ClassChat = ({ classNum, section, currentUser }) => {
                 </div>
             )}
 
+            {/* ============ PARTICIPANTS PANEL ============ */}
+            {showParticipants && (
+                <>
+                    <div className="participants-overlay" onClick={() => setShowParticipants(false)} />
+                    <div className="participants-panel" onClick={e => e.stopPropagation()}>
+                        <div className="participants-panel-header">
+                            <h3>
+                                <Users size={18} />
+                                Participants
+                                <span className="count-badge">{participants.length}</span>
+                            </h3>
+                            <button className="close-btn" onClick={() => setShowParticipants(false)}>
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {/* Tabs */}
+                        {isAdminOrTeacher ? (
+                            <div className="participants-tabs">
+                                <button
+                                    className={`participants-tab ${participantsTab === 'members' ? 'active' : ''}`}
+                                    onClick={() => { setParticipantsTab('members'); setSearchQuery(''); }}
+                                >
+                                    Members
+                                </button>
+                                <button
+                                    className={`participants-tab ${participantsTab === 'addStudents' ? 'active' : ''}`}
+                                    onClick={() => { setParticipantsTab('addStudents'); setSearchQuery(''); }}
+                                >
+                                    + Students
+                                </button>
+                                <button
+                                    className={`participants-tab ${participantsTab === 'addTeachers' ? 'active' : ''}`}
+                                    onClick={() => { setParticipantsTab('addTeachers'); setSearchQuery(''); }}
+                                >
+                                    + Teachers
+                                </button>
+                            </div>
+                        ) : null}
+
+                        {/* ---- Members Tab ---- */}
+                        {participantsTab === 'members' && (
+                            <div className="participants-list">
+                                {participants.length === 0 ? (
+                                    <div className="empty-add-state">
+                                        <Users size={32} className="text-gray-300" />
+                                        <p>No participants yet</p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        {/* Online Section */}
+                                        {onlineParticipants.length > 0 && (
+                                            <>
+                                                <div className="section-header online">
+                                                    <span className="online-dot-small" />
+                                                    Online — {onlineParticipants.length}
+                                                </div>
+                                                {onlineParticipants.map((p, idx) => renderParticipantItem(p, idx))}
+                                            </>
+                                        )}
+
+                                        {/* Offline Section */}
+                                        {offlineParticipants.length > 0 && (
+                                            <>
+                                                <div className="section-header offline">
+                                                    Offline — {offlineParticipants.length}
+                                                </div>
+                                                {offlineParticipants.map((p, idx) => renderParticipantItem(p, idx))}
+                                            </>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        )}
+
+                        {/* ---- Add Students Tab ---- */}
+                        {participantsTab === 'addStudents' && (
+                            <div className="add-members-section">
+                                <div className="add-members-controls">
+                                    <div className="class-selectors">
+                                        <select value={addClassNum} onChange={e => { setAddClassNum(e.target.value); setAddSection(''); }}>
+                                            <option value="">Class</option>
+                                            {classOptions.map(c => (
+                                                <option key={c} value={c}>{c}</option>
+                                            ))}
+                                        </select>
+                                        <select value={addSection} onChange={e => setAddSection(e.target.value)} disabled={!addClassNum}>
+                                            <option value="">Section</option>
+                                            {sectionOptions.map(s => (
+                                                <option key={s} value={s}>{s}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {availableStudents.length > 0 && (
+                                    <div className="search-input-wrap">
+                                        <input
+                                            type="text"
+                                            placeholder="Search by name or admission no..."
+                                            value={searchQuery}
+                                            onChange={e => setSearchQuery(e.target.value)}
+                                        />
+                                    </div>
+                                )}
+
+                                {loadingAvailable ? (
+                                    <div className="loading-spinner-small">
+                                        <Loader size={24} className="animate-spin text-blue-500" />
+                                    </div>
+                                ) : !addClassNum || !addSection ? (
+                                    <div className="empty-add-state">
+                                        <Search size={28} className="text-gray-300" />
+                                        <p>Select a class and section to find students</p>
+                                    </div>
+                                ) : filteredStudents.length === 0 ? (
+                                    <div className="empty-add-state">
+                                        <Users size={28} className="text-gray-300" />
+                                        <p>No students found</p>
+                                    </div>
+                                ) : (
+                                    <div className="available-list">
+                                        {filteredStudents.map(s => {
+                                            const alreadyAdded = isParticipant(s.id);
+                                            return (
+                                                <button
+                                                    key={s.id}
+                                                    className={`available-item ${alreadyAdded ? 'already-added' : ''}`}
+                                                    onClick={() => !alreadyAdded && handleAddParticipant(s)}
+                                                    disabled={alreadyAdded}
+                                                >
+                                                    <div className="participant-avatar student">
+                                                        {getInitial(s.name)}
+                                                    </div>
+                                                    <div className="participant-info">
+                                                        <div className="name">{s.name}</div>
+                                                        <div className="meta">
+                                                            <span className="admission-no">ID: {s.id}</span>
+                                                            <span>Class {s.class}-{s.section}</span>
+                                                        </div>
+                                                    </div>
+                                                    {alreadyAdded ? (
+                                                        <span className="added-badge">Added</span>
+                                                    ) : (
+                                                        <span className="add-badge">Add</span>
+                                                    )}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* ---- Add Teachers Tab ---- */}
+                        {participantsTab === 'addTeachers' && (
+                            <div className="add-members-section">
+                                {availableTeachers.length > 0 && (
+                                    <div className="search-input-wrap">
+                                        <input
+                                            type="text"
+                                            placeholder="Search teachers..."
+                                            value={searchQuery}
+                                            onChange={e => setSearchQuery(e.target.value)}
+                                        />
+                                    </div>
+                                )}
+
+                                {loadingAvailable ? (
+                                    <div className="loading-spinner-small">
+                                        <Loader size={24} className="animate-spin text-blue-500" />
+                                    </div>
+                                ) : filteredTeachers.length === 0 ? (
+                                    <div className="empty-add-state">
+                                        <Users size={28} className="text-gray-300" />
+                                        <p>No teachers found</p>
+                                    </div>
+                                ) : (
+                                    <div className="available-list">
+                                        {filteredTeachers.map(t => {
+                                            const alreadyAdded = isParticipant(t.id);
+                                            return (
+                                                <button
+                                                    key={t.id}
+                                                    className={`available-item ${alreadyAdded ? 'already-added' : ''}`}
+                                                    onClick={() => !alreadyAdded && handleAddParticipant(t)}
+                                                    disabled={alreadyAdded}
+                                                >
+                                                    <div className="participant-avatar teacher">
+                                                        {getInitial(t.name)}
+                                                    </div>
+                                                    <div className="participant-info">
+                                                        <div className="name">{t.name}</div>
+                                                        <div className="meta">
+                                                            <span className="role-badge teacher">Teacher</span>
+                                                            {t.subject && <span>{t.subject}</span>}
+                                                        </div>
+                                                    </div>
+                                                    {alreadyAdded ? (
+                                                        <span className="added-badge">Added</span>
+                                                    ) : (
+                                                        <span className="add-badge">Add</span>
+                                                    )}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </>
+            )}
+
             {/* Messages Area */}
             <div ref={chatContainerRef} className="flex-1 overflow-y-auto chat-scrollbar p-3 sm:p-6 space-y-3">
                 {messages.length === 0 ? (
@@ -276,7 +680,6 @@ const ClassChat = ({ classNum, section, currentUser }) => {
                                 )}
 
                                 <div className="relative group max-w-[88%] sm:max-w-[75%]">
-                                    {/* Context menu trigger area */}
                                     <div
                                         className={`rounded-2xl px-3 sm:px-4 py-2 shadow-sm relative ${isMine
                                             ? 'bg-blue-600 text-white rounded-br-sm'
@@ -286,7 +689,6 @@ const ClassChat = ({ classNum, section, currentUser }) => {
                                         onTouchStart={(e) => handleLongPress.onTouchStart(e, msg.id, msg.senderId)}
                                         onTouchEnd={handleLongPress.onTouchEnd}
                                     >
-                                        {/* Edit mode */}
                                         {editingMsgId === msg.id ? (
                                             <div className="flex flex-col gap-2 min-w-[200px]">
                                                 <input
@@ -303,7 +705,6 @@ const ClassChat = ({ classNum, section, currentUser }) => {
                                             </div>
                                         ) : (
                                             <>
-                                                {/* File Attachment */}
                                                 {msg.fileUrl && (
                                                     <div className="mb-2 mt-1">
                                                         {msg.fileType?.startsWith('image/') ? (
@@ -330,7 +731,6 @@ const ClassChat = ({ classNum, section, currentUser }) => {
                                                     </p>
                                                 )}
 
-                                                {/* Time + Edited + Tick */}
                                                 <div className={`mt-1 text-[11px] ${isMine ? 'text-blue-200' : 'text-gray-400'} flex items-center justify-end gap-1.5`}>
                                                     {msg.edited && <span className="italic">edited</span>}
                                                     {formatTime(msg.timestamp)}
@@ -340,7 +740,6 @@ const ClassChat = ({ classNum, section, currentUser }) => {
                                         )}
                                     </div>
 
-                                    {/* Hover action buttons (emoji) */}
                                     {editingMsgId !== msg.id && (
                                         <button
                                             onClick={(e) => { e.stopPropagation(); setEmojiPickerMsgId(emojiPickerMsgId === msg.id ? null : msg.id); }}
@@ -350,7 +749,6 @@ const ClassChat = ({ classNum, section, currentUser }) => {
                                         </button>
                                     )}
 
-                                    {/* Emoji Picker */}
                                     {emojiPickerMsgId === msg.id && (
                                         <div
                                             className={`absolute ${isMine ? 'right-0' : 'left-0'} -top-10 bg-white shadow-lg rounded-full px-2 py-1 flex gap-1 border border-gray-100 z-20`}
@@ -368,7 +766,6 @@ const ClassChat = ({ classNum, section, currentUser }) => {
                                         </div>
                                     )}
 
-                                    {/* Reactions Display */}
                                     {hasReactions && (
                                         <div className={`flex flex-wrap gap-1 mt-1 ${isMine ? 'justify-end' : 'justify-start'}`}>
                                             {Object.entries(reactions).map(([emoji, users]) => (
@@ -387,7 +784,6 @@ const ClassChat = ({ classNum, section, currentUser }) => {
                                         </div>
                                     )}
 
-                                    {/* Mobile reaction button */}
                                     {editingMsgId !== msg.id && (
                                         <button
                                             onClick={(e) => { e.stopPropagation(); setEmojiPickerMsgId(emojiPickerMsgId === msg.id ? null : msg.id); }}
@@ -398,7 +794,6 @@ const ClassChat = ({ classNum, section, currentUser }) => {
                                     )}
                                 </div>
 
-                                {/* Seen By (only for own messages, teachers see details) */}
                                 {isMine && seenCount > 0 && (
                                     <div className="relative">
                                         <button
@@ -409,7 +804,6 @@ const ClassChat = ({ classNum, section, currentUser }) => {
                                             Seen by {seenCount}
                                         </button>
 
-                                        {/* Seen By Popup (teachers only) */}
                                         {seenByMsgId === msg.id && isAdminOrTeacher && (
                                             <div className="absolute right-0 top-5 bg-white shadow-lg rounded-lg p-3 z-20 border border-gray-100 min-w-[150px]" onClick={e => e.stopPropagation()}>
                                                 <h4 className="text-xs font-semibold text-gray-500 mb-2 uppercase">Seen by</h4>
@@ -522,6 +916,77 @@ const ClassChat = ({ classNum, section, currentUser }) => {
                     </form>
                 )}
             </div>
+
+            {/* ──── Call Target Picker ──── */}
+            {showCallPicker && (
+                <div className="absolute inset-0 bg-black/40 z-40 flex items-center justify-center" onClick={() => setShowCallPicker(null)}>
+                    <div className="bg-white rounded-2xl shadow-2xl w-80 max-h-96 overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div className="p-4 border-b flex items-center justify-between">
+                            <h3 className="font-bold text-gray-800">
+                                {showCallPicker === 'video' ? '📹 Video Call' : '📞 Voice Call'}
+                            </h3>
+                            <button onClick={() => setShowCallPicker(null)} className="p-1 hover:bg-gray-100 rounded-lg">
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <p className="px-4 pt-2 text-xs text-gray-400">Select who to call:</p>
+                        <div className="p-2 max-h-64 overflow-y-auto">
+                            {participants
+                                .filter(p => p.id !== currentUser.id && isUserOnline(p.id))
+                                .map(p => (
+                                    <button
+                                        key={p.id}
+                                        onClick={() => {
+                                            setShowCallPicker(null);
+                                            webRTC.startCall(p.id, showCallPicker);
+                                        }}
+                                        className="w-full flex items-center gap-3 p-3 hover:bg-blue-50 rounded-xl transition text-left"
+                                    >
+                                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-bold shrink-0">
+                                            {(p.name || p.id).charAt(0).toUpperCase()}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium text-gray-800 truncate">{p.name || p.id}</p>
+                                            <p className="text-xs text-green-500 flex items-center gap-1">
+                                                <span className="w-1.5 h-1.5 bg-green-500 rounded-full" /> Online
+                                            </p>
+                                        </div>
+                                        {showCallPicker === 'video'
+                                            ? <Video size={16} className="text-blue-500 shrink-0" />
+                                            : <Phone size={16} className="text-green-500 shrink-0" />
+                                        }
+                                    </button>
+                                ))
+                            }
+                            {participants.filter(p => p.id !== currentUser.id && isUserOnline(p.id)).length === 0 && (
+                                <p className="text-center text-gray-400 text-sm py-6">No online members to call</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ──── Call Modal (WebRTC) ──── */}
+            <CallModal
+                callState={webRTC.callState}
+                callType={webRTC.callType}
+                localStream={webRTC.localStream}
+                remoteStream={webRTC.remoteStream}
+                isMuted={webRTC.isMuted}
+                isCameraOff={webRTC.isCameraOff}
+                isScreenSharing={webRTC.isScreenSharing}
+                isRecording={webRTC.isRecording}
+                incomingCall={webRTC.incomingCall}
+                callDuration={webRTC.callDuration}
+                onAnswer={webRTC.answerCall}
+                onReject={webRTC.rejectCall}
+                onEndCall={webRTC.endCall}
+                onToggleMic={webRTC.toggleMic}
+                onToggleCamera={webRTC.toggleCamera}
+                onShareScreen={webRTC.shareScreen}
+                onStartRecording={webRTC.startRecording}
+                onStopRecording={webRTC.stopRecording}
+            />
         </div>
     );
 };

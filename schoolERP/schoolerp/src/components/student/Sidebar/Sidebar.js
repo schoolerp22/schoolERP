@@ -26,7 +26,7 @@ const menuItems = [
   { id: "announcements", label: "Announcements", icon: Bell },
 ];
 
-const Sidebar = ({ profile, currentView, onViewChange, sidebarOpen, onToggleSidebar }) => {
+const Sidebar = ({ profile, currentView, onViewChange, sidebarOpen, onToggleSidebar, unreadCount = 0 }) => {
   const dispatch = useDispatch();
   const [showLogoutModal, setShowLogoutModal] = React.useState(false);
 
@@ -68,6 +68,7 @@ const Sidebar = ({ profile, currentView, onViewChange, sidebarOpen, onToggleSide
         <nav className="flex-1 overflow-y-auto custom-scrollbar space-y-1 px-4">
           {menuItems.map((item) => {
             const Icon = item.icon;
+            const showUnread = item.id === 'class-chat' && unreadCount > 0;
             return (
               <button
                 key={item.id}
@@ -80,9 +81,21 @@ const Sidebar = ({ profile, currentView, onViewChange, sidebarOpen, onToggleSide
                 className={`flex items-center gap-3 w-full p-3 rounded-lg hover:bg-indigo-800 transition ${currentView === item.id ? "bg-indigo-800 text-white" : "text-indigo-200"
                   }`}
               >
-                <Icon size={20} className="shrink-0" />
+                <div className="relative shrink-0">
+                  <Icon size={20} />
+                  {!sidebarOpen && showUnread && (
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
+                </div>
                 {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
-                {sidebarOpen && item.badge && (
+                {sidebarOpen && showUnread && (
+                  <span className="ml-auto min-w-[20px] h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1.5 animate-pulse">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+                {sidebarOpen && item.badge && !showUnread && (
                   <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded font-bold ${item.badgeColor}`}>
                     {item.badge}
                   </span>

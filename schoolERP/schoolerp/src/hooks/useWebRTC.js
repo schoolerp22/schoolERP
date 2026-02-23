@@ -24,7 +24,13 @@ const fetchIceServers = async () => {
         const resp = await fetch(
             `https://${METERED_DOMAIN}/api/v1/turn/credentials?apiKey=${METERED_API_KEY}`
         );
-        const iceServers = await resp.json();
+        const data = await resp.json();
+        // Metered returns an array of ICE server objects
+        const iceServers = Array.isArray(data) ? data : (data.iceServers || data.s || []);
+        if (!iceServers.length) {
+            console.warn('Metered returned empty ICE servers, using fallback');
+            return FALLBACK_ICE;
+        }
         console.log('Metered ICE servers loaded:', iceServers.length);
         return iceServers;
     } catch (err) {
@@ -190,8 +196,9 @@ export const useWebRTC = (userId, userName) => {
     }, []);
 
     const createPeerConnection = useCallback((targetUserId) => {
+        const servers = Array.isArray(iceServersRef.current) ? iceServersRef.current : FALLBACK_ICE;
         const pc = new RTCPeerConnection({
-            iceServers: iceServersRef.current
+            iceServers: servers
         });
 
         pc.onicecandidate = (event) => {

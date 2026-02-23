@@ -2,36 +2,35 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 
 const SOCKET_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const METERED_DOMAIN = process.env.REACT_APP_METERED_DOMAIN;
+const METERED_API_KEY = process.env.REACT_APP_METERED_API_KEY;
 
-// ICE servers for NAT traversal (works across different networks)
-const getIceServers = () => {
-    const servers = [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' },
-        { urls: 'stun:stun3.l.google.com:19302' },
-        { urls: 'stun:stun4.l.google.com:19302' }
-    ];
+// Fallback STUN servers if Metered is not configured
+const FALLBACK_ICE = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' }
+];
 
-    // Add TURN server if configured (required for cross-network calls)
-    const turnUrl = process.env.REACT_APP_TURN_URL;
-    const turnUser = process.env.REACT_APP_TURN_USERNAME;
-    const turnCred = process.env.REACT_APP_TURN_CREDENTIAL;
-    if (turnUrl && turnUser && turnCred) {
-        servers.push({
-            urls: turnUrl,
-            username: turnUser,
-            credential: turnCred
-        });
-        // Also add TCP TURN for restrictive firewalls
-        servers.push({
-            urls: turnUrl.replace(':443', ':443?transport=tcp'),
-            username: turnUser,
-            credential: turnCred
-        });
+/**
+ * Fetch TURN/STUN credentials from Metered API.
+ * Returns an array of ICE server objects ready for RTCPeerConnection.
+ */
+const fetchIceServers = async () => {
+    if (!METERED_DOMAIN || !METERED_API_KEY) {
+        console.warn('Metered TURN not configured — using STUN only (same-network calls only)');
+        return FALLBACK_ICE;
     }
-
-    return servers;
+    try {
+        const resp = await fetch(
+            `https://${METERED_DOMAIN}/api/v1/turn/credentials?apiKey=${METERED_API_KEY}`
+        );
+        const iceServers = await resp.json();
+        console.log('Metered ICE servers loaded:', iceServers.length);
+        return iceServers;
+    } catch (err) {
+        console.error('Failed to fetch Metered TURN servers, using fallback:', err);
+        return FALLBACK_ICE;
+    }
 };
 
 /**
@@ -61,6 +60,14 @@ export const useWebRTC = (userId, userName) => {
     const recordedChunksRef = useRef([]);
     const durationIntervalRef = useRef(null);
     const originalVideoTrackRef = useRef(null);
+    const iceServersRef = useRef(FALLBACK_ICE); // will be updated on mount
+
+    // Fetch Metered ICE servers on mount
+    useEffect(() => {
+        fetchIceServers().then(servers => {
+            iceServersRef.current = servers;
+        });
+    }, []);
 
     // Initialize Socket.IO connection
     useEffect(() => {
@@ -184,7 +191,7 @@ export const useWebRTC = (userId, userName) => {
 
     const createPeerConnection = useCallback((targetUserId) => {
         const pc = new RTCPeerConnection({
-            iceServers: getIceServers()
+            iceServers: iceServersRef.current
         });
 
         pc.onicecandidate = (event) => {

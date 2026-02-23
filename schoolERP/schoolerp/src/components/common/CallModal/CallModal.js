@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import {
     Phone, PhoneOff, Mic, MicOff, Video, VideoOff,
-    Monitor, MonitorOff, Circle, StopCircle, X, PhoneIncoming
+    Monitor, MonitorOff, Circle, StopCircle,  PhoneIncoming
 } from 'lucide-react';
 import './CallModal.css';
 

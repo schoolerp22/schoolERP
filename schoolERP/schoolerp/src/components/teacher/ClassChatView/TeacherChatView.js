@@ -3,13 +3,13 @@ import { useSelector } from 'react-redux';
 import ClassChat from '../../common/ClassChat/ClassChat';
 import { useGroupChat } from '../../../hooks/useGroupChat';
 import {
-    MessageSquare, AlertCircle, Plus, Users, Trash2, Edit3, X,
+    MessageSquare, AlertCircle, Plus, Users, Trash2, X,
     Search, ChevronRight, Hash, Loader
 } from 'lucide-react';
 
 const TeacherChatView = ({ selectedClass }) => {
     const { profile } = useSelector((state) => state.teacher);
-    const { user } = useSelector((state) => state.auth);
+    // const { user } = useSelector((state) => state.auth);
 
     const [activeTab, setActiveTab] = useState('class'); // 'class' | 'groups'
     const [selectedGroup, setSelectedGroup] = useState(null);

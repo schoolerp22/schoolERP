@@ -46,7 +46,7 @@ const useGlobalPresence = (userId) => {
         const handleBeforeUnload = () => {
             try {
                 // Use sendBeacon or sync setDoc — best effort
-                const data = JSON.stringify({ lastSeen: 0, online: false });
+                // const data = JSON.stringify({ lastSeen: 0, online: false });
                 navigator.sendBeacon?.(`/__presence_offline`); // won't work but harmless
                 setDoc(presenceRef, { lastSeen: 0, online: false }, { merge: true });
             } catch (e) { /* ignore */ }

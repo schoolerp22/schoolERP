@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import ClassChat from '../../common/ClassChat/ClassChat';
 import { useGroupChat } from '../../../hooks/useGroupChat';
-import { MessageSquare, AlertCircle, Hash, ChevronLeft, Users } from 'lucide-react';
+import { MessageSquare, AlertCircle, Hash, ChevronLeft } from 'lucide-react';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../../firebase';
 
@@ -10,7 +10,7 @@ const StudentChatView = () => {
     const { profile } = useSelector((state) => state.student);
     const [additionalRooms, setAdditionalRooms] = useState([]);
     const [activeChat, setActiveChat] = useState(null); // null = own class, { type: 'class', ... } or { type: 'group', ... }
-    const [loadingRooms, setLoadingRooms] = useState(true);
+    // const [loadingRooms, setLoadingRooms] = useState(true);
 
     const classNum = profile?.academic?.current_class || profile?.class || profile?.class_name;
     const section = profile?.academic?.section || profile?.section;
@@ -28,7 +28,7 @@ const StudentChatView = () => {
 
     // Find other CLASS rooms this student was added to
     useEffect(() => {
-        if (!studentId || !classNum || !section) { setLoadingRooms(false); return; }
+        // if (!studentId || !classNum || !section) { setLoadingRooms(false); return; }
         const findRooms = async () => {
             try {
                 const snapshot = await getDocs(collection(db, 'chatRooms'));
@@ -49,7 +49,7 @@ const StudentChatView = () => {
                 });
                 setAdditionalRooms(extraRooms);
             } catch (err) { console.error('Error finding rooms:', err); }
-            finally { setLoadingRooms(false); }
+            // finally { setLoadingRooms(false); }
         };
         findRooms();
     }, [studentId, classNum, section, profile]);
@@ -68,17 +68,17 @@ const StudentChatView = () => {
     const hasExtras = additionalRooms.length > 0 || groups.length > 0;
 
     // Build the chat items list
-    const allChats = [
-        { type: 'class', id: 'own', classNum, section, label: `Class ${classNum}-${section}`, isOwn: true },
-        ...additionalRooms.map(r => ({
-            type: 'class', id: r.id, classNum: r.classNum, section: r.section,
-            label: `Class ${r.classNum}-${r.section}`, isOwn: false
-        })),
-        ...groups.map(g => ({
-            type: 'group', id: g.id, groupName: g.groupName,
-            label: g.groupName, memberCount: g.memberCount
-        }))
-    ];
+    // const allChats = [
+    //     { type: 'class', id: 'own', classNum, section, label: `Class ${classNum}-${section}`, isOwn: true },
+    //     ...additionalRooms.map(r => ({
+    //         type: 'class', id: r.id, classNum: r.classNum, section: r.section,
+    //         label: `Class ${r.classNum}-${r.section}`, isOwn: false
+    //     })),
+    //     ...groups.map(g => ({
+    //         type: 'group', id: g.id, groupName: g.groupName,
+    //         label: g.groupName, memberCount: g.memberCount
+    //     }))
+    // ];
 
     // Determine what to render
     const isViewingNonDefault = activeChat !== null;

@@ -12,8 +12,8 @@ const formatDuration = (seconds) => {
 };
 
 const CallModal = ({
-    callState,       // idle | calling | ringing | connected
-    callType,        // video | audio
+    callState,
+    callType,
     localStream,
     remoteStream,
     isMuted,
@@ -34,19 +34,28 @@ const CallModal = ({
     const localVideoRef = useRef(null);
     const remoteVideoRef = useRef(null);
 
-    // Attach local stream to video element
+    // Callback ref: attaches stream immediately when element mounts
+    const setRemoteVideoRef = (el) => {
+        remoteVideoRef.current = el;
+        if (el && remoteStream) el.srcObject = remoteStream;
+    };
+    const setLocalVideoRef = (el) => {
+        localVideoRef.current = el;
+        if (el && localStream) el.srcObject = localStream;
+    };
+
+    // Also re-attach when stream object changes (e.g. new track added)
     useEffect(() => {
         if (localVideoRef.current && localStream) {
             localVideoRef.current.srcObject = localStream;
         }
-    }, [localStream]);
+    }, [localStream, callState]);
 
-    // Attach remote stream to video element
     useEffect(() => {
         if (remoteVideoRef.current && remoteStream) {
             remoteVideoRef.current.srcObject = remoteStream;
         }
-    }, [remoteStream]);
+    }, [remoteStream, callState]);
 
     // Don't render if idle
     if (callState === 'idle') return null;
@@ -107,7 +116,7 @@ const CallModal = ({
                             <div className="video-container">
                                 {/* Remote video (main) */}
                                 <video
-                                    ref={remoteVideoRef}
+                                    ref={setRemoteVideoRef}
                                     autoPlay
                                     playsInline
                                     className="remote-video"
@@ -121,7 +130,7 @@ const CallModal = ({
                                         </div>
                                     ) : (
                                         <video
-                                            ref={localVideoRef}
+                                            ref={setLocalVideoRef}
                                             autoPlay
                                             playsInline
                                             muted
@@ -137,9 +146,9 @@ const CallModal = ({
                                 </div>
                                 <h3>Voice Call Connected</h3>
 
-                                {/* Hidden video refs for audio calls (needed for stream setup) */}
-                                <video ref={remoteVideoRef} autoPlay playsInline style={{ display: 'none' }} />
-                                <video ref={localVideoRef} autoPlay playsInline muted style={{ display: 'none' }} />
+                                {/* Hidden video refs for audio calls */}
+                                <video ref={setRemoteVideoRef} autoPlay playsInline style={{ display: 'none' }} />
+                                <video ref={setLocalVideoRef} autoPlay playsInline muted style={{ display: 'none' }} />
                             </div>
                         )}
 

@@ -36,10 +36,11 @@ const fetchIceServers = async () => {
         const data = await resp.json();
         const servers = data.iceServers || [];
         if (!servers.length) throw new Error('Empty ICE servers from backend');
-        console.log('ICE servers loaded:', servers.length, 'servers');
+        console.log('[WebRTC] ✅ ICE servers loaded:', servers.length, 'servers');
+        console.log('[WebRTC] ICE servers:', JSON.stringify(servers, null, 2));
         return servers;
     } catch (err) {
-        console.warn('Failed to fetch ICE servers from backend, using fallback:', err.message);
+        console.warn('[WebRTC] ⚠️ Failed to fetch ICE servers, using fallback:', err.message);
         return FALLBACK_ICE;
     }
 };
@@ -91,13 +92,17 @@ export const useWebRTC = (userId, userName) => {
         socketRef.current = socket;
 
         socket.on('connect', () => {
-            console.log('Socket connected for WebRTC:', socket.id);
+            console.log('[WebRTC] ✅ Socket connected:', socket.id, '| userId:', userId);
             socket.emit('register', userId);
+        });
+
+        socket.on('connect_error', (err) => {
+            console.error('[WebRTC] ❌ Socket connection error:', err.message);
         });
 
         // Incoming call
         socket.on('incoming-call', (data) => {
-            console.log('Incoming call from:', data.fromName);
+            console.log('[WebRTC] 📞 Incoming call from:', data.fromName, '| type:', data.callType);
             setIncomingCall(data);
             setCallState('ringing');
             setCallType(data.callType);
@@ -108,18 +113,23 @@ export const useWebRTC = (userId, userName) => {
         socket.on('call-answered', async ({ answer }) => {
             try {
                 const pc = peerRef.current;
+                console.log('[WebRTC] 📥 call-answered received | signalingState:', pc?.signalingState);
                 if (pc && pc.signalingState === 'have-local-offer') {
                     await pc.setRemoteDescription(new RTCSessionDescription(answer));
+                    console.log('[WebRTC] ✅ Remote answer set on caller');
                     // Flush queued ICE candidates
                     for (const c of pendingCandidatesRef.current) {
                         await pc.addIceCandidate(new RTCIceCandidate(c));
                     }
+                    console.log('[WebRTC] ICE queue flushed:', pendingCandidatesRef.current.length, 'candidates');
                     pendingCandidatesRef.current = [];
                     setCallState('connected');
                     startDurationTimer();
+                } else {
+                    console.warn('[WebRTC] ⚠️ Skipped setRemoteDescription — unexpected signalingState:', pc?.signalingState);
                 }
             } catch (err) {
-                console.error('Error setting remote answer:', err);
+                console.error('[WebRTC] ❌ Error setting remote answer:', err);
             }
         });
 
@@ -131,11 +141,11 @@ export const useWebRTC = (userId, userName) => {
                 if (pc && pc.remoteDescription) {
                     await pc.addIceCandidate(new RTCIceCandidate(candidate));
                 } else {
-                    // Buffer candidates until remote description is set
+                    console.log('[WebRTC] 🕐 Queuing ICE candidate (remote desc not set yet)');
                     pendingCandidatesRef.current.push(candidate);
                 }
             } catch (err) {
-                console.error('Error adding ICE candidate:', err);
+                console.error('[WebRTC] ❌ Error adding ICE candidate:', err);
             }
         });
 
@@ -221,21 +231,52 @@ export const useWebRTC = (userId, userName) => {
 
         pc.onicecandidate = (event) => {
             if (event.candidate && socketRef.current) {
+                console.log('[WebRTC] 🧊 Sending ICE candidate to', targetUserId);
                 socketRef.current.emit('ice-candidate', {
                     to: targetUserId,
                     candidate: event.candidate
                 });
+            } else if (!event.candidate) {
+                console.log('[WebRTC] 🧊 ICE gathering complete');
             }
         };
 
-        // Use event.streams[0] directly — most reliable way to capture all tracks
+        pc.oniceconnectionstatechange = () => {
+            console.log('[WebRTC] ICE connection state:', pc.iceConnectionState);
+            if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
+                console.warn('[WebRTC] ❌ ICE failed/disconnected — ending call');
+                endCall();
+            }
+        };
+
+        pc.onconnectionstatechange = () => {
+            console.log('[WebRTC] Peer connection state:', pc.connectionState);
+        };
+
+        pc.onsignalingstatechange = () => {
+            console.log('[WebRTC] Signaling state:', pc.signalingState);
+        };
+
+        // Use a stable MediaStream ref so all tracks accumulate (ontrack fires per-track)
+        const remoteStream = new MediaStream();
+        pc.remoteStreamRef = remoteStream; // attach to pc so we can reference it
+
         pc.ontrack = (event) => {
+            console.log('ontrack fired:', event.track.kind, event.track.readyState);
+
             if (event.streams && event.streams[0]) {
+                // Prefer the stream from the event — most reliable
                 setRemoteStream(event.streams[0]);
             } else {
-                // Fallback: build stream from track
-                const remote = new MediaStream([event.track]);
-                setRemoteStream(remote);
+                // Fallback: accumulate tracks manually
+                event.track.onunmute = () => {
+                    pc.remoteStreamRef.addTrack(event.track);
+                    setRemoteStream(new MediaStream(pc.remoteStreamRef.getTracks()));
+                };
+                if (event.track.readyState === 'live') {
+                    pc.remoteStreamRef.addTrack(event.track);
+                    setRemoteStream(new MediaStream(pc.remoteStreamRef.getTracks()));
+                }
             }
         };
 
@@ -254,30 +295,31 @@ export const useWebRTC = (userId, userName) => {
     // Start a call (caller side)
     const startCall = useCallback(async (targetUserId, type = 'video') => {
         try {
+            console.log('[WebRTC] 📤 Starting', type, 'call to:', targetUserId);
             setCallState('calling');
             setCallType(type);
             setRemoteUserId(targetUserId);
 
-            // Get media stream
             const constraints = {
                 audio: true,
                 video: type === 'video' ? { width: 1280, height: 720, facingMode: 'user' } : false
             };
+            console.log('[WebRTC] Getting user media with constraints:', JSON.stringify(constraints));
             const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            console.log('[WebRTC] ✅ Got local stream — tracks:', stream.getTracks().map(t => t.kind + ':' + t.readyState));
             localStreamRef.current = stream;
             setLocalStream(stream);
 
-            // Create peer connection
             const pc = createPeerConnection(targetUserId);
 
-            // Add tracks to peer
             stream.getTracks().forEach(track => {
+                console.log('[WebRTC] Adding local track to PC:', track.kind);
                 pc.addTrack(track, stream);
             });
 
-            // Create and send offer
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
+            console.log('[WebRTC] ✅ Offer created & set as local description');
 
             socketRef.current.emit('call-user', {
                 to: targetUserId,
@@ -286,8 +328,9 @@ export const useWebRTC = (userId, userName) => {
                 offer,
                 callType: type
             });
+            console.log('[WebRTC] 📡 call-user emitted to:', targetUserId);
         } catch (err) {
-            console.error('Error starting call:', err);
+            console.error('[WebRTC] ❌ Error starting call:', err.name, err.message);
             cleanup();
             setCallState('idle');
             if (err.name === 'NotAllowedError') {
@@ -303,11 +346,13 @@ export const useWebRTC = (userId, userName) => {
         if (!incomingCall) return;
 
         try {
+            console.log('[WebRTC] 📥 Answering', incomingCall.callType, 'call from:', incomingCall.from);
             const constraints = {
                 audio: true,
                 video: incomingCall.callType === 'video' ? { width: 1280, height: 720, facingMode: 'user' } : false
             };
             const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            console.log('[WebRTC] ✅ Got local stream — tracks:', stream.getTracks().map(t => t.kind + ':' + t.readyState));
             localStreamRef.current = stream;
             setLocalStream(stream);
 
@@ -315,32 +360,36 @@ export const useWebRTC = (userId, userName) => {
 
             // Add local tracks BEFORE setting remote description
             stream.getTracks().forEach(track => {
+                console.log('[WebRTC] Adding local track to PC:', track.kind);
                 pc.addTrack(track, stream);
             });
 
             // Set remote description (offer from caller)
             await pc.setRemoteDescription(new RTCSessionDescription(incomingCall.offer));
+            console.log('[WebRTC] ✅ Remote offer set on callee | signalingState:', pc.signalingState);
 
-            // Flush any queued ICE candidates that arrived before remote desc
+            // Flush any queued ICE candidates
+            console.log('[WebRTC] Flushing', pendingCandidatesRef.current.length, 'queued ICE candidates');
             for (const c of pendingCandidatesRef.current) {
                 await pc.addIceCandidate(new RTCIceCandidate(c));
             }
             pendingCandidatesRef.current = [];
 
-            // Create and send answer
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
+            console.log('[WebRTC] ✅ Answer created & set as local description');
 
             socketRef.current.emit('call-accepted', {
                 to: incomingCall.from,
                 answer
             });
+            console.log('[WebRTC] 📡 call-accepted emitted');
 
             setCallState('connected');
             setIncomingCall(null);
             startDurationTimer();
         } catch (err) {
-            console.error('Error answering call:', err);
+            console.error('[WebRTC] ❌ Error answering call:', err.name, err.message);
             cleanup();
             setCallState('idle');
             if (err.name === 'NotAllowedError') {

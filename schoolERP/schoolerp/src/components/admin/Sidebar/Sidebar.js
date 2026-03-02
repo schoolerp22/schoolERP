@@ -12,7 +12,9 @@ import {
     LogOut,
     Calendar,
     BookOpen,
-    MessageSquare
+    MessageSquare,
+    IndianRupee,
+    Settings
 } from 'lucide-react';
 import LogoutConfirmModal from '../../common/LogoutConfirmModal';
 
@@ -28,8 +30,10 @@ const Sidebar = ({ currentView, onViewChange, sidebarOpen, setSidebarOpen }) => 
         { id: 'school-chat', icon: MessageSquare, label: 'School Communications' },
         { id: 'marking-schemes', icon: BookOpen, label: 'Marking Schemes' },
         { id: 'attendance-backlog', icon: Calendar, label: 'Student Backlog' },
+        { id: 'fee-management', icon: IndianRupee, label: 'Fee Management' },
         { id: 'reports', icon: FileText, label: 'Reports' },
         { id: 'analytics', icon: BarChart3, label: 'Analytics' },
+        { id: 'school-settings', icon: Settings, label: 'School Settings' },
     ];
 
     return (

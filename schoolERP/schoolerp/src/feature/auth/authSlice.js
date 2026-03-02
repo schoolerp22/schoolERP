@@ -139,12 +139,26 @@ const authSlice = createSlice({
       })
       .addCase(validateToken.rejected, (state) => {
         state.loading = false;
-        state.isAuthenticated = false;
-        state.user = null;
-        state.role = null;
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
-        localStorage.removeItem("role");
+        // Don't immediately log out — fall back to localStorage data
+        // Only clear session if there's truly no token stored
+        const storedToken = localStorage.getItem("token");
+        const storedUser = localStorage.getItem("user");
+        const storedRole = localStorage.getItem("role");
+        if (storedToken && storedUser) {
+          // Keep existing session from localStorage (server might be restarting / slow)
+          state.isAuthenticated = true;
+          state.token = storedToken;
+          state.role = storedRole || state.role;
+          try { state.user = JSON.parse(storedUser); } catch { /* ignore */ }
+        } else {
+          // No stored token — actually log out
+          state.isAuthenticated = false;
+          state.user = null;
+          state.role = null;
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
+          localStorage.removeItem("role");
+        }
       })
 
       // Login User (Email/Pass)

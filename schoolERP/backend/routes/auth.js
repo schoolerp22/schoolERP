@@ -61,17 +61,40 @@ router.post("/login", async (req, res) => {
       }
     }
 
+    if (!user) {
+      // Check accountants collection
+      user = await db.collection("accountants").findOne({ accountant_id: userId });
+      if (user) {
+        role = "accountant";
+        uniqueId = user.accountant_id; // "ACC-001"
+      }
+    }
+
+    if (!user) {
+      // Check superAdmin collection
+      user = await db.collection("superAdmins").findOne({ super_admin_id: userId });
+      if (user) {
+        role = "superAdmin";
+        uniqueId = user.super_admin_id; // "SA-001"
+      }
+    }
+
     if (!user) return res.status(404).json({ message: "User not found" });
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch)
       return res.status(401).json({ message: "Invalid credentials" });
 
-    // Create JWT with MongoDB _id and role
+    // Create JWT with MongoDB _id, role, and schoolId
+    // In this system, admin_no acts as the schoolId context for students/teachers
+    let schoolId = user.schoolId || user.admin_no || user.admin_id || "default_school";
+    if (role === 'superAdmin') schoolId = 'super_admin_global';
+
     const token = jwt.sign(
       {
         id: user._id.toString(), // MongoDB ObjectId
-        role: role
+        role: role,
+        schoolId: schoolId
       },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
@@ -83,7 +106,10 @@ router.post("/login", async (req, res) => {
       role,
       teacher_id: role === "teacher" ? uniqueId : undefined,
       admission_no: role === "student" ? uniqueId : undefined,
-      admin_id: role === "schoolAdmin" || role === "superAdmin" ? uniqueId : undefined,
+      admin_id: role === "schoolAdmin" ? uniqueId : undefined,
+      accountant_id: role === "accountant" ? uniqueId : undefined,
+      super_admin_id: role === "superAdmin" ? uniqueId : undefined,
+      schoolId: schoolId
     };
 
     res.json({

@@ -11,6 +11,7 @@ import SchoolAdminDashboard from "./dashboards/SchoolAdmin/SchoolAdminDashboard"
 import TeacherDashboard from "./dashboards/Teacher/TeacherDashboard";
 import StudentDashboard from "./dashboards/Student/StudentDashboard";
 import ParentDashboard from "./dashboards/Parent/ParentDashboard";
+import AccountantDashboard from "./dashboards/Accountant/AccountantDashboard";
 
 import ForgotPassword from "./pages/ForgotPassword";
 import Login from "./pages/Login";
@@ -31,6 +32,7 @@ function App() {
         <Route path="/login/student" element={<Login />} />
         <Route path="/login/teacher" element={<Login />} />
         <Route path="/login/admin" element={<Login />} />
+        <Route path="/login/accountant" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/unauthorized" element={<Unauthorized />} />
 
@@ -60,6 +62,11 @@ function App() {
           {/* Parent */}
           <Route element={<RoleRoute allowed={["parent"]} />}>
             <Route path="/dashboard/parent" element={<ParentDashboard />} />
+          </Route>
+
+          {/* Accountant */}
+          <Route element={<RoleRoute allowed={["accountant", "schoolAdmin", "superAdmin"]} />}>
+            <Route path="/dashboard/accountant/*" element={<AccountantDashboard />} />
           </Route>
 
         </Route>

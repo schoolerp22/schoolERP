@@ -66,7 +66,8 @@ export const useWebRTC = (userId, userName) => {
     const recordedChunksRef = useRef([]);
     const durationIntervalRef = useRef(null);
     const originalVideoTrackRef = useRef(null);
-    const iceServersRef = useRef(FALLBACK_ICE); // will be updated on mount
+    const iceServersRef = useRef(FALLBACK_ICE);
+    const pendingCandidatesRef = useRef([]); // Queue ICE candidates before remote desc is set
 
     // Fetch Metered ICE servers on mount
     useEffect(() => {
@@ -98,11 +99,17 @@ export const useWebRTC = (userId, userName) => {
             setRemoteUserId(data.from);
         });
 
-        // Call answered — set remote description
+        // Call answered — set remote description (caller side)
         socket.on('call-answered', async ({ answer }) => {
             try {
-                if (peerRef.current && peerRef.current.signalingState !== 'stable') {
-                    await peerRef.current.setRemoteDescription(new RTCSessionDescription(answer));
+                const pc = peerRef.current;
+                if (pc && pc.signalingState === 'have-local-offer') {
+                    await pc.setRemoteDescription(new RTCSessionDescription(answer));
+                    // Flush queued ICE candidates
+                    for (const c of pendingCandidatesRef.current) {
+                        await pc.addIceCandidate(new RTCIceCandidate(c));
+                    }
+                    pendingCandidatesRef.current = [];
                     setCallState('connected');
                     startDurationTimer();
                 }
@@ -111,11 +118,16 @@ export const useWebRTC = (userId, userName) => {
             }
         });
 
-        // ICE candidate from remote
+        // ICE candidate from remote — queue if remote desc not set yet
         socket.on('ice-candidate', async ({ candidate }) => {
             try {
-                if (peerRef.current && candidate) {
-                    await peerRef.current.addIceCandidate(new RTCIceCandidate(candidate));
+                if (!candidate) return;
+                const pc = peerRef.current;
+                if (pc && pc.remoteDescription) {
+                    await pc.addIceCandidate(new RTCIceCandidate(candidate));
+                } else {
+                    // Buffer candidates until remote description is set
+                    pendingCandidatesRef.current.push(candidate);
                 }
             } catch (err) {
                 console.error('Error adding ICE candidate:', err);
@@ -193,6 +205,7 @@ export const useWebRTC = (userId, userName) => {
         setCallDuration(0);
         setRemoteUserId(null);
         recordedChunksRef.current = [];
+        pendingCandidatesRef.current = []; // clear ICE queue
     }, []);
 
     const createPeerConnection = useCallback((targetUserId) => {
@@ -210,12 +223,15 @@ export const useWebRTC = (userId, userName) => {
             }
         };
 
+        // Use event.streams[0] directly — most reliable way to capture all tracks
         pc.ontrack = (event) => {
-            const remote = new MediaStream();
-            event.streams[0].getTracks().forEach(track => {
-                remote.addTrack(track);
-            });
-            setRemoteStream(remote);
+            if (event.streams && event.streams[0]) {
+                setRemoteStream(event.streams[0]);
+            } else {
+                // Fallback: build stream from track
+                const remote = new MediaStream([event.track]);
+                setRemoteStream(remote);
+            }
         };
 
         pc.oniceconnectionstatechange = () => {
@@ -292,13 +308,19 @@ export const useWebRTC = (userId, userName) => {
 
             const pc = createPeerConnection(incomingCall.from);
 
-            // Add tracks
+            // Add local tracks BEFORE setting remote description
             stream.getTracks().forEach(track => {
                 pc.addTrack(track, stream);
             });
 
-            // Set remote description (offer)
+            // Set remote description (offer from caller)
             await pc.setRemoteDescription(new RTCSessionDescription(incomingCall.offer));
+
+            // Flush any queued ICE candidates that arrived before remote desc
+            for (const c of pendingCandidatesRef.current) {
+                await pc.addIceCandidate(new RTCIceCandidate(c));
+            }
+            pendingCandidatesRef.current = [];
 
             // Create and send answer
             const answer = await pc.createAnswer();

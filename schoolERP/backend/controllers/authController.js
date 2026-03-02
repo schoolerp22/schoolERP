@@ -5,10 +5,12 @@ import { sendSignupSuccessEmail, sendOTPEmail } from "../utils/emailService.js";
 
 const getDB = (req) => req.app.locals.db;
 
-const generateToken = (id, role) => {
-  return jwt.sign({ id, role }, process.env.JWT_SECRET || "default_secret", {
-    expiresIn: "30d",
-  });
+const generateToken = (id, role, schoolId) => {
+  return jwt.sign(
+    { id, role, schoolId: schoolId || 'default_school' },
+    process.env.JWT_SECRET || "default_secret",
+    { expiresIn: "30d" }
+  );
 };
 
 // --- Helper to find user by ID/Email and Role ---
@@ -60,13 +62,29 @@ const findUser = async (db, loginId, role) => {
     if (admin) return { user: admin, role: "schoolAdmin", collection: "admin" };
   }
 
+  if (role === 'accountant') {
+    const query = {
+      $or: [
+        { accountant_id: id },
+        { email: id },
+        { admin_id: id } // Some accountants might be using an admin record with role "accountant"
+      ]
+    };
+
+    let acc = await db.collection("accountants").findOne(query);
+    if (acc) return { user: acc, role: "accountant", collection: "accountants" };
+
+    acc = await db.collection("admin").findOne({ ...query, role: "accountant" });
+    if (acc) return { user: acc, role: "accountant", collection: "admin" };
+  }
+
   // Fallback: If no role specified or not found in specific role, try global search (legacy behavior)
   if (!role) {
     let admin = await db.collection("schoolAdmin").findOne({ email: id });
-    if (admin) return { user: admin, role: "schoolAdmin", collection: "schoolAdmin" };
+    if (admin) return { user: admin, role: admin.role || "schoolAdmin", collection: "schoolAdmin" };
 
     admin = await db.collection("admin").findOne({ email: id });
-    if (admin) return { user: admin, role: "schoolAdmin", collection: "admin" };
+    if (admin) return { user: admin, role: admin.role || "schoolAdmin", collection: "admin" };
 
     // Teacher: search by email OR teacher_id OR creds.id
     const teacher = await db.collection("teachers").findOne({
@@ -107,6 +125,9 @@ export const validateUser = async (req, res) => {
     } else if (role === 'schoolAdmin') {
       user = await db.collection("schoolAdmin").findOne({ _id: new ObjectId(id) });
       if (!user) user = await db.collection("admin").findOne({ _id: new ObjectId(id) });
+    } else if (role === 'accountant') {
+      user = await db.collection("accountants").findOne({ _id: new ObjectId(id) });
+      if (!user) user = await db.collection("admin").findOne({ _id: new ObjectId(id) }); // Admin backwards compat
     }
 
     if (!user) return res.status(404).json({ message: "User not found" });
@@ -127,10 +148,10 @@ const findUserByEmail = async (db, email) => {
 
   // Check Admin
   let user = await db.collection("schoolAdmin").findOne({ email: emailRegex });
-  if (user) return { user, role: "schoolAdmin", collection: "schoolAdmin" };
+  if (user) return { user, role: user.role || "schoolAdmin", collection: "schoolAdmin" };
 
   user = await db.collection("admin").findOne({ email: emailRegex });
-  if (user) return { user, role: "schoolAdmin", collection: "admin" };
+  if (user) return { user, role: user.role || "schoolAdmin", collection: "admin" };
 
   // Check Teacher
   user = await db.collection("teachers").findOne({ "personal_details.email": emailRegex });
@@ -160,7 +181,8 @@ export const loginUser = async (req, res) => {
       }
 
       const { user, role: foundRole } = found;
-      const token = generateToken(user._id, foundRole);
+      const schoolId = user.schoolId || user.admin_no || user.admin_id || 'default_school';
+      const token = generateToken(user._id, foundRole, schoolId);
       return res.json({
         token,
         user: { ...user, role: foundRole },
@@ -200,10 +222,12 @@ export const loginUser = async (req, res) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    const token = generateToken(user._id, foundRole);
+    // Derive schoolId from user document
+    const schoolId = user.schoolId || user.admin_no || user.admin_id || 'default_school';
+    const token = generateToken(user._id, foundRole, schoolId);
     res.json({
       token,
-      user: { ...user, role: foundRole },
+      user: { ...user, role: foundRole, schoolId },
       role: foundRole
     });
 

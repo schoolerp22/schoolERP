@@ -24,6 +24,7 @@ export default function Login() {
   useEffect(() => {
     if (location.pathname.includes("teacher")) setRole("teacher");
     else if (location.pathname.includes("admin")) setRole("schoolAdmin");
+    else if (location.pathname.includes("accountant")) setRole("accountant");
     else if (location.pathname.includes("student")) setRole("student");
   }, [location]);
 
@@ -33,8 +34,8 @@ export default function Login() {
       if (userRole === "schoolAdmin") navigate("/dashboard/school-admin");
       else if (userRole === "teacher") navigate("/dashboard/teacher");
       else if (userRole === "student") navigate("/dashboard/student");
-      else if (userRole === "parent") navigate("/dashboard/parent");
       else if (userRole === "superAdmin") navigate("/dashboard/super-admin");
+      else if (userRole === "accountant") navigate("/dashboard/accountant");
     }
 
     if (error) {
@@ -69,6 +70,7 @@ export default function Login() {
       case "student": return "Admission Number / Email";
       case "teacher": return "Teacher ID / Email";
       case "schoolAdmin": return "Admin ID / Email";
+      case "accountant": return "Accountant ID / Email";
       default: return "User ID";
     }
   };
@@ -87,27 +89,34 @@ export default function Login() {
         </div>
 
         {/* Role Tabs */}
-        <div className="flex border-b mb-6">
+        <div className="flex border-b mb-6 overflow-x-auto">
           <button
-            className={`flex-1 py-2 text-center flex items-center justify-center gap-2 ${role === "student" ? "border-b-2 border-indigo-600 text-indigo-600 font-semibold" : "text-gray-500 hover:text-gray-700"
+            className={`flex-1 min-w-[80px] py-2 text-center flex flex-col items-center justify-center gap-1 text-sm ${role === "student" ? "border-b-2 border-indigo-600 text-indigo-600 font-semibold" : "text-gray-500 hover:text-gray-700"
               }`}
             onClick={() => setRole("student")}
           >
             <GraduationCap size={18} /> Student
           </button>
           <button
-            className={`flex-1 py-2 text-center flex items-center justify-center gap-2 ${role === "teacher" ? "border-b-2 border-indigo-600 text-indigo-600 font-semibold" : "text-gray-500 hover:text-gray-700"
+            className={`flex-1 min-w-[80px] py-2 text-center flex flex-col items-center justify-center gap-1 text-sm ${role === "teacher" ? "border-b-2 border-indigo-600 text-indigo-600 font-semibold" : "text-gray-500 hover:text-gray-700"
               }`}
             onClick={() => setRole("teacher")}
           >
             <User size={18} /> Teacher
           </button>
           <button
-            className={`flex-1 py-2 text-center flex items-center justify-center gap-2 ${role === "schoolAdmin" ? "border-b-2 border-indigo-600 text-indigo-600 font-semibold" : "text-gray-500 hover:text-gray-700"
+            className={`flex-1 min-w-[80px] py-2 text-center flex flex-col items-center justify-center gap-1 text-sm ${role === "schoolAdmin" ? "border-b-2 border-indigo-600 text-indigo-600 font-semibold" : "text-gray-500 hover:text-gray-700"
               }`}
             onClick={() => setRole("schoolAdmin")}
           >
             <School size={18} /> Admin
+          </button>
+          <button
+            className={`flex-1 min-w-[80px] py-2 text-center flex flex-col items-center justify-center gap-1 text-sm ${role === "accountant" ? "border-b-2 border-indigo-600 text-indigo-600 font-semibold" : "text-gray-500 hover:text-gray-700"
+              }`}
+            onClick={() => setRole("accountant")}
+          >
+            <School size={18} /> Accountant
           </button>
         </div>
 

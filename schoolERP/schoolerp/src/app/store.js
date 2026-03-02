@@ -3,6 +3,7 @@ import authReducer from "../feature/auth/authSlice";
 import teacherReducer from "../feature/teachers/teacherSlice";
 import studentReducer from "../feature/students/studentSlice";
 import adminReducer from "../feature/admin/adminSlice";
+import accountingReducer from "../feature/accounting/accountingSlice";
 
 // Debug middleware
 const logger = (store) => (next) => (action) => {
@@ -16,6 +17,7 @@ export const store = configureStore({
     teacher: teacherReducer,
     student: studentReducer,
     admin: adminReducer,
+    accounting: accountingReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(logger),

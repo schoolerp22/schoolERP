@@ -102,7 +102,7 @@ const ImageUpload = ({ label, field, currentSrc, onUpload }) => {
             <label className="block text-xs font-semibold text-gray-600 mb-1">{label}</label>
             <div className="flex items-center gap-3">
                 {currentSrc ? (
-                    <img src={`http://localhost:5000${currentSrc}`} alt={label} className="w-14 h-14 rounded-lg object-cover border" />
+                    <img src={`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}${currentSrc}`} alt={label} className="w-14 h-14 rounded-lg object-cover border" />
                 ) : (
                     <div className="w-14 h-14 rounded-lg bg-gray-100 border flex items-center justify-center text-gray-300">
                         <Upload size={18} />

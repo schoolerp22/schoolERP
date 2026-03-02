@@ -25,7 +25,8 @@ const ReceiptListView = () => {
 
         // Fetch school settings for dynamic receipt header
         const token = localStorage.getItem("token");
-        fetch("http://localhost:5000/api/admin/school-settings", {
+        const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+        fetch(`${API_BASE}/api/admin/school-settings`, {
             headers: { Authorization: `Bearer ${token}` }
         })
             .then(r => r.ok ? r.json() : {})
@@ -248,7 +249,7 @@ const ReceiptListView = () => {
                                         {/* Logo */}
                                         {schoolSettings.logo ? (
                                             <img
-                                                src={`http://localhost:5000${schoolSettings.logo}`}
+                                                src={`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}${schoolSettings.logo}`}
                                                 alt="School Logo"
                                                 style={{ width: "60px", height: "60px", borderRadius: "50%", objectFit: "cover", border: "2px solid #000", flexShrink: 0 }}
                                             />

@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import {
     Phone, PhoneOff, Mic, MicOff, Video, VideoOff,
-    Monitor, MonitorOff, Circle, StopCircle,  PhoneIncoming
+    Monitor, MonitorOff, Circle, StopCircle, PhoneIncoming
 } from 'lucide-react';
 import './CallModal.css';
 
@@ -173,13 +173,15 @@ const CallModal = ({
                                 </button>
                             )}
 
-                            <button
-                                className={`control-btn ${isScreenSharing ? 'active screen-share' : ''}`}
-                                onClick={onShareScreen}
-                                title={isScreenSharing ? 'Stop sharing' : 'Share screen'}
-                            >
-                                {isScreenSharing ? <MonitorOff size={20} /> : <Monitor size={20} />}
-                            </button>
+                            {navigator.mediaDevices?.getDisplayMedia && (
+                                <button
+                                    className={`control-btn ${isScreenSharing ? 'active screen-share' : ''}`}
+                                    onClick={onShareScreen}
+                                    title={isScreenSharing ? 'Stop sharing' : 'Share screen'}
+                                >
+                                    {isScreenSharing ? <MonitorOff size={20} /> : <Monitor size={20} />}
+                                </button>
+                            )}
 
                             <button
                                 className={`control-btn ${isRecording ? 'active recording' : ''}`}

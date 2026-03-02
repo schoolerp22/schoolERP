@@ -137,6 +137,37 @@ const startServer = async () => {
       res.send("API is running...");
     });
 
+    // ── TURN credentials — fetches from Metered server-side (secret key never exposed to frontend)
+    app.get("/api/turn-credentials", async (req, res) => {
+      const domain = process.env.METERED_DOMAIN;
+      const secretKey = process.env.METERED_SECRET_KEY;
+
+      const FALLBACK = [
+        { urls: "stun:stun.l.google.com:19302" },
+        { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
+        { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
+        { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" }
+      ];
+
+      if (!domain || !secretKey) {
+        return res.json({ iceServers: FALLBACK });
+      }
+
+      try {
+        const response = await fetch(
+          `https://${domain}/api/v1/turn/credentials?apiKey=${secretKey}`
+        );
+        if (!response.ok) throw new Error(`Metered returned ${response.status}`);
+        const data = await response.json();
+        const iceServers = Array.isArray(data) ? data : (data.iceServers || []);
+        if (!iceServers.length) throw new Error("Empty ICE servers");
+        res.json({ iceServers });
+      } catch (err) {
+        console.warn("Metered TURN fetch failed, using fallback:", err.message);
+        res.json({ iceServers: FALLBACK });
+      }
+    });
+
     app.use("/api/teacher", teacherRoutes);
     app.use("/api/teacher/results", teacherResultsRoutes);
 

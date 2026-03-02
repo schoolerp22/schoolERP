@@ -2,39 +2,44 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 
 const SOCKET_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-const METERED_DOMAIN = process.env.REACT_APP_METERED_DOMAIN;
-const METERED_API_KEY = process.env.REACT_APP_METERED_API_KEY;
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
-// Fallback STUN servers if Metered is not configured
+// Free TURN servers from openrelay.metered.ca (no API key needed, works across networks)
 const FALLBACK_ICE = [
     { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' }
+    { urls: 'stun:stun1.l.google.com:19302' },
+    {
+        urls: 'turn:openrelay.metered.ca:80',
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+    },
+    {
+        urls: 'turn:openrelay.metered.ca:443',
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+    },
+    {
+        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+    }
 ];
 
 /**
- * Fetch TURN/STUN credentials from Metered API.
- * Returns an array of ICE server objects ready for RTCPeerConnection.
+ * Fetch TURN/STUN credentials from our own backend (which calls Metered server-side).
+ * Secret key is never exposed to the browser.
  */
 const fetchIceServers = async () => {
-    if (!METERED_DOMAIN || !METERED_API_KEY) {
-        console.warn('Metered TURN not configured — using STUN only (same-network calls only)');
-        return FALLBACK_ICE;
-    }
     try {
-        const resp = await fetch(
-            `https://${METERED_DOMAIN}/api/v1/turn/credentials?apiKey=${METERED_API_KEY}`
-        );
+        const resp = await fetch(`${API_URL}/api/turn-credentials`);
+        if (!resp.ok) throw new Error(`Backend returned ${resp.status}`);
         const data = await resp.json();
-        // Metered returns an array of ICE server objects
-        const iceServers = Array.isArray(data) ? data : (data.iceServers || data.s || []);
-        if (!iceServers.length) {
-            console.warn('Metered returned empty ICE servers, using fallback');
-            return FALLBACK_ICE;
-        }
-        console.log('Metered ICE servers loaded:', iceServers.length);
-        return iceServers;
+        const servers = data.iceServers || [];
+        if (!servers.length) throw new Error('Empty ICE servers from backend');
+        console.log('ICE servers loaded:', servers.length, 'servers');
+        return servers;
     } catch (err) {
-        console.error('Failed to fetch Metered TURN servers, using fallback:', err);
+        console.warn('Failed to fetch ICE servers from backend, using fallback:', err.message);
         return FALLBACK_ICE;
     }
 };
@@ -393,6 +398,12 @@ export const useWebRTC = (userId, userName) => {
     // Screen sharing
     const shareScreen = useCallback(async () => {
         if (!peerRef.current) return;
+
+        // getDisplayMedia is desktop-only — not available on mobile browsers
+        if (!navigator.mediaDevices?.getDisplayMedia) {
+            alert('Screen sharing is not supported on mobile browsers. Please use a desktop browser.');
+            return;
+        }
 
         if (isScreenSharing) {
             // --- Stop screen sharing ---

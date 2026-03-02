@@ -243,9 +243,14 @@ export const useWebRTC = (userId, userName) => {
 
         pc.oniceconnectionstatechange = () => {
             console.log('[WebRTC] ICE connection state:', pc.iceConnectionState);
-            if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
-                console.warn('[WebRTC] ❌ ICE failed/disconnected — ending call');
+            if (pc.iceConnectionState === 'failed') {
+                // 'failed' = unrecoverable, end the call
+                console.warn('[WebRTC] ❌ ICE failed — ending call');
                 endCall();
+            } else if (pc.iceConnectionState === 'disconnected') {
+                // 'disconnected' is TRANSIENT — network hiccup, do NOT end call
+                // It may recover to 'connected' on its own
+                console.warn('[WebRTC] ⚠️ ICE disconnected (transient) — waiting to see if it recovers');
             }
         };
 

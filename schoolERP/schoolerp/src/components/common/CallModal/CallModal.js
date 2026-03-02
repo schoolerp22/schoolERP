@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import {
     Phone, PhoneOff, Mic, MicOff, Video, VideoOff,
     Monitor, MonitorOff, Circle, StopCircle, PhoneIncoming
@@ -34,17 +34,19 @@ const CallModal = ({
     const localVideoRef = useRef(null);
     const remoteVideoRef = useRef(null);
 
-    // Callback ref: attaches stream immediately when element mounts
-    const setRemoteVideoRef = (el) => {
+    // useCallback makes ref callbacks stable — without it React calls old(null)+new(el)
+    // on EVERY render, resetting srcObject and causing the camera flicker
+    const setRemoteVideoRef = useCallback((el) => {
         remoteVideoRef.current = el;
         if (el && remoteStream) el.srcObject = remoteStream;
-    };
-    const setLocalVideoRef = (el) => {
+    }, [remoteStream]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const setLocalVideoRef = useCallback((el) => {
         localVideoRef.current = el;
         if (el && localStream) el.srcObject = localStream;
-    };
+    }, [localStream]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Also re-attach when stream object changes (e.g. new track added)
+    // Re-attach when stream changes (e.g. new track added mid-call)
     useEffect(() => {
         if (localVideoRef.current && localStream) {
             localVideoRef.current.srcObject = localStream;

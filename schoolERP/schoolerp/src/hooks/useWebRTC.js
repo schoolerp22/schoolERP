@@ -387,67 +387,98 @@ export const useWebRTC = (userId, userName) => {
         }
     }, []);
 
+    // Ref-based stop so onended always has fresh reference (avoids stale closure)
+    const stopScreenShareRef = useRef(null);
+
     // Screen sharing
     const shareScreen = useCallback(async () => {
         if (!peerRef.current) return;
 
         if (isScreenSharing) {
-            // Stop screen sharing - revert to camera
+            // --- Stop screen sharing ---
             if (screenStreamRef.current) {
                 screenStreamRef.current.getTracks().forEach(t => t.stop());
                 screenStreamRef.current = null;
             }
-            // Replace screen track with original camera track
+            // Restore original camera track (video calls only)
             if (originalVideoTrackRef.current) {
                 const sender = peerRef.current.getSenders().find(s => s.track?.kind === 'video');
                 if (sender) {
                     await sender.replaceTrack(originalVideoTrackRef.current);
                 }
-                // Update local stream
                 if (localStreamRef.current) {
-                    const oldTrack = localStreamRef.current.getVideoTracks()[0];
-                    if (oldTrack) localStreamRef.current.removeTrack(oldTrack);
+                    const screenTrack = localStreamRef.current.getVideoTracks()[0];
+                    if (screenTrack) localStreamRef.current.removeTrack(screenTrack);
                     localStreamRef.current.addTrack(originalVideoTrackRef.current);
                     setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
                 }
+                originalVideoTrackRef.current = null;
             }
             setIsScreenSharing(false);
         } else {
+            // --- Start screen sharing ---
             try {
                 const screenStream = await navigator.mediaDevices.getDisplayMedia({
                     video: { cursor: 'always' },
-                    audio: true
+                    audio: false           // avoids echo — local mic handles audio
                 });
                 screenStreamRef.current = screenStream;
-
                 const screenTrack = screenStream.getVideoTracks()[0];
 
-                // Save original camera track
-                const sender = peerRef.current.getSenders().find(s => s.track?.kind === 'video');
-                if (sender) {
-                    originalVideoTrackRef.current = sender.track;
-                    await sender.replaceTrack(screenTrack);
+                const videoSender = peerRef.current.getSenders().find(s => s.track?.kind === 'video');
+
+                if (videoSender) {
+                    // Video call: replace existing video track
+                    originalVideoTrackRef.current = videoSender.track;
+                    await videoSender.replaceTrack(screenTrack);
+                } else {
+                    // Audio call: add screen track as new sender
+                    peerRef.current.addTrack(screenTrack, screenStream);
+                    originalVideoTrackRef.current = null; // nothing to restore
                 }
 
-                // Update local stream to show screen
+                // Update local preview
                 if (localStreamRef.current) {
-                    const oldTrack = localStreamRef.current.getVideoTracks()[0];
-                    if (oldTrack) localStreamRef.current.removeTrack(oldTrack);
+                    const oldVideo = localStreamRef.current.getVideoTracks()[0];
+                    if (oldVideo) localStreamRef.current.removeTrack(oldVideo);
                     localStreamRef.current.addTrack(screenTrack);
                     setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
                 }
 
-                // Handle screen share stop (user clicks "Stop sharing")
+                // Use ref so onended always calls up-to-date stop logic (no stale closure)
+                stopScreenShareRef.current = async () => {
+                    if (screenStreamRef.current) {
+                        screenStreamRef.current.getTracks().forEach(t => t.stop());
+                        screenStreamRef.current = null;
+                    }
+                    if (originalVideoTrackRef.current) {
+                        const sender = peerRef.current?.getSenders().find(s => s.track?.kind === 'video');
+                        if (sender) await sender.replaceTrack(originalVideoTrackRef.current);
+                        if (localStreamRef.current) {
+                            const st = localStreamRef.current.getVideoTracks()[0];
+                            if (st) localStreamRef.current.removeTrack(st);
+                            localStreamRef.current.addTrack(originalVideoTrackRef.current);
+                            setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
+                        }
+                        originalVideoTrackRef.current = null;
+                    }
+                    setIsScreenSharing(false);
+                };
+
+                // When user clicks "Stop sharing" in browser UI
                 screenTrack.onended = () => {
-                    shareScreen(); // Will toggle off
+                    if (stopScreenShareRef.current) stopScreenShareRef.current();
                 };
 
                 setIsScreenSharing(true);
             } catch (err) {
-                console.error('Screen share error:', err);
+                if (err.name !== 'NotAllowedError') {
+                    console.error('Screen share error:', err);
+                    alert('Screen share failed: ' + err.message);
+                }
+                // NotAllowedError = user cancelled — silent
             }
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isScreenSharing]);
 
     // Start recording

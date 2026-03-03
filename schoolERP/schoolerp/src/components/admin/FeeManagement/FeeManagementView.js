@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { getClasses, getFeeHeads, getFeeStructure, saveFeeStructure, createFeeHead } from "../../../feature/accounting/accountingSlice";
-import { Settings, Plus, Save, Trash2 } from "lucide-react";
+import { getClasses, getFeeHeads, getFeeStructure, saveFeeStructure, createFeeHead, deleteAdhocFee, updateAdhocFee } from "../../../feature/accounting/accountingSlice";
+import accountingService from "../../../feature/accounting/accountingService";
+import { Settings, Plus, Save, Trash2, Info, Pencil, Check, X } from "lucide-react";
 
 /**
  * SuperAdmin / SchoolAdmin Fee Configuration
@@ -20,6 +21,11 @@ const FeeManagementView = () => {
 
     // Structure Builder State
     const [structureBuilder, setStructureBuilder] = useState([]);
+    const [classCharges, setClassCharges] = useState([]);
+
+    // Edit state for additional charges
+    const [editingId, setEditingId] = useState(null);
+    const [editValues, setEditValues] = useState({ name: "", amount: "", category: "", frequency: "", section: "" });
 
     useEffect(() => {
         dispatch(getClasses());
@@ -51,8 +57,57 @@ const FeeManagementView = () => {
     useEffect(() => {
         if (selectedClass) {
             dispatch(getFeeStructure(selectedClass));
+            fetchClassCharges(selectedClass);
         }
     }, [selectedClass, dispatch]);
+
+    const fetchClassCharges = async (className) => {
+        try {
+            const res = await accountingService.getAdhocFeesByClass(className);
+            setClassCharges(Array.isArray(res) ? res : []);
+        } catch { setClassCharges([]); }
+    };
+
+    const handleDeleteCharge = async (feeId) => {
+        if (!window.confirm("Remove this additional charge?")) return;
+        await dispatch(deleteAdhocFee(feeId));
+        fetchClassCharges(selectedClass);
+    };
+
+    const handleStartEdit = (charge) => {
+        setEditingId(charge._id);
+        setEditValues({
+            name: charge.name,
+            amount: String(charge.amount),
+            category: charge.category || "Other",
+            frequency: charge.frequency || "Monthly",
+            section: charge.section || ""
+        });
+    };
+
+    const handleCancelEdit = () => {
+        setEditingId(null);
+        setEditValues({ name: "", amount: "", category: "", frequency: "", section: "" });
+    };
+
+    const handleSaveEdit = async (feeId) => {
+        if (!editValues.name.trim() || !editValues.amount) {
+            alert("Name and amount are required");
+            return;
+        }
+        await dispatch(updateAdhocFee({
+            feeId,
+            data: {
+                name: editValues.name.trim(),
+                amount: Number(editValues.amount),
+                category: editValues.category,
+                frequency: editValues.frequency,
+                section: editValues.section
+            }
+        }));
+        setEditingId(null);
+        fetchClassCharges(selectedClass);
+    };
 
     useEffect(() => {
         if (currentFeeStructure && currentFeeStructure.className === selectedClass) {
@@ -240,6 +295,129 @@ const FeeManagementView = () => {
                                     </div>
                                 </div>
                             </div>
+
+                            {/* --- ADD ADMIN VIEW FOR CLASS CHARGES MIGRATED FROM ACCOUNTANT PORTAL --- */}
+                            {selectedClass && (
+                                <div className="md:col-span-12 mt-8">
+                                    <div className="bg-white border border-gray-200 rounded-xl shadow-sm">
+                                        <div className="p-6 border-b border-gray-200 bg-gray-50/50">
+                                            <h3 className="text-xl font-bold text-gray-800">
+                                                Additional Class Charges <span className="text-blue-600">— {selectedClass}</span>
+                                            </h3>
+                                            <p className="text-sm text-gray-400 mt-1">Temporary or event-based fees applied directly to this class.</p>
+                                        </div>
+                                        <div className="p-6">
+                                            {classCharges.length > 0 ? (
+                                                <table className="w-full text-left border-collapse">
+                                                    <thead>
+                                                        <tr className="bg-gray-50 text-gray-600 border-b border-gray-200">
+                                                            <th className="p-3 font-semibold text-sm">Charge Name</th>
+                                                            <th className="p-3 font-semibold text-sm">Category</th>
+                                                            <th className="p-3 font-semibold text-sm">Frequency</th>
+                                                            <th className="p-3 font-semibold text-sm">Section</th>
+                                                            <th className="p-3 font-semibold text-sm">Added By</th>
+                                                            <th className="p-3 font-semibold text-sm text-right">Amount (₹)</th>
+                                                            <th className="p-3 font-semibold text-sm text-center" style={{ width: '80px' }}></th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {classCharges.map(charge => (
+                                                            <tr key={charge._id} className="border-b border-gray-100 hover:bg-gray-50">
+                                                                {editingId === charge._id ? (
+                                                                    <>
+                                                                        <td className="p-2">
+                                                                            <input type="text" value={editValues.name} onChange={e => setEditValues({ ...editValues, name: e.target.value })}
+                                                                                style={{ width: '100%', padding: '4px 8px', border: '1px solid #93c5fd', borderRadius: '4px', fontSize: '0.84rem', outline: 'none' }} />
+                                                                        </td>
+                                                                        <td className="p-2">
+                                                                            <select value={editValues.category} onChange={e => setEditValues({ ...editValues, category: e.target.value })}
+                                                                                style={{ padding: '4px 6px', border: '1px solid #93c5fd', borderRadius: '4px', fontSize: '0.8rem', background: '#fff' }}>
+                                                                                <option value="Activity">Activity</option>
+                                                                                <option value="Event">Event</option>
+                                                                                <option value="Fine">Fine</option>
+                                                                                <option value="Program">Program</option>
+                                                                                <option value="Other">Other</option>
+                                                                            </select>
+                                                                        </td>
+                                                                        <td className="p-2">
+                                                                            <select value={editValues.frequency} onChange={e => setEditValues({ ...editValues, frequency: e.target.value })}
+                                                                                style={{ padding: '4px 6px', border: '1px solid #93c5fd', borderRadius: '4px', fontSize: '0.8rem', background: '#fff' }}>
+                                                                                <option value="Monthly">Monthly</option>
+                                                                                <option value="One-time">One-time</option>
+                                                                                <option value="Quarterly">Quarterly</option>
+                                                                            </select>
+                                                                        </td>
+                                                                        <td className="p-2">
+                                                                            <select value={editValues.section} onChange={e => setEditValues({ ...editValues, section: e.target.value })}
+                                                                                style={{ padding: '4px 6px', border: '1px solid #93c5fd', borderRadius: '4px', fontSize: '0.8rem', background: '#fff' }}>
+                                                                                <option value="">All</option>
+                                                                                <option value="A">A</option>
+                                                                                <option value="B">B</option>
+                                                                                <option value="C">C</option>
+                                                                                <option value="D">D</option>
+                                                                            </select>
+                                                                        </td>
+                                                                        <td className="p-2 text-gray-400 text-xs">{charge.addedByRole === 'accountant' ? 'Accountant' : 'Admin'}</td>
+                                                                        <td className="p-2 text-right">
+                                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '2px', background: '#fff', border: '1px solid #93c5fd', borderRadius: '4px', overflow: 'hidden', width: '110px', marginLeft: 'auto' }}>
+                                                                                <span style={{ padding: '4px 6px', background: '#f1f5f9', color: '#64748b', fontWeight: '600', fontSize: '0.82rem' }}>₹</span>
+                                                                                <input type="text" inputMode="numeric" value={editValues.amount} onChange={e => setEditValues({ ...editValues, amount: e.target.value.replace(/[^0-9]/g, '') })}
+                                                                                    style={{ padding: '4px 6px', border: 'none', outline: 'none', width: '70px', fontSize: '0.84rem', textAlign: 'right' }} />
+                                                                            </div>
+                                                                        </td>
+                                                                        <td className="p-2 text-center">
+                                                                            <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                                                                                <button onClick={() => handleSaveEdit(charge._id)} style={{ background: '#dcfce7', border: 'none', color: '#16a34a', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px' }} title="Save"><Check size={15} /></button>
+                                                                                <button onClick={handleCancelEdit} style={{ background: '#fee2e2', border: 'none', color: '#dc2626', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px' }} title="Cancel"><X size={15} /></button>
+                                                                            </div>
+                                                                        </td>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <td className="p-3 font-medium text-gray-900">{charge.name}</td>
+                                                                        <td className="p-3">
+                                                                            <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '0.72rem', fontWeight: '600', background: 'linear-gradient(135deg, #e0e7ff, #c7d2fe)', color: '#4338ca', textTransform: 'uppercase' }}>{charge.category}</span>
+                                                                        </td>
+                                                                        <td className="p-3">
+                                                                            <span className={`px-2 py-1 text-xs rounded-md ${charge.frequency === 'Monthly' ? 'bg-blue-50 text-blue-700' : charge.frequency === 'Quarterly' ? 'bg-purple-50 text-purple-700' : 'bg-orange-50 text-orange-700'}`}>{charge.frequency || "One-time"}</span>
+                                                                        </td>
+                                                                        <td className="p-3 text-gray-600 font-medium">{charge.section || "All"}</td>
+                                                                        <td className="p-3">
+                                                                            {charge.addedByRole ? (
+                                                                                <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: charge.addedByRole === 'accountant' ? '#f0fdf4' : '#f0f9ff', color: charge.addedByRole === 'accountant' ? '#166534' : '#0369a1', border: `1px solid ${charge.addedByRole === 'accountant' ? '#bbf7d0' : '#bae6fd'}` }}>
+                                                                                    {charge.addedByRole === 'accountant' ? 'Accountant' : 'Admin'}
+                                                                                </span>
+                                                                            ) : (<span className="text-gray-400 text-xs">Unknown</span>)}
+                                                                        </td>
+                                                                        <td className="p-3 font-semibold text-right">₹ {Number(charge.amount).toLocaleString()}</td>
+                                                                        <td className="p-3 text-center">
+                                                                            <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                                                                                {!charge.isPaid && (
+                                                                                    <button onClick={() => handleStartEdit(charge)} style={{ background: 'transparent', border: 'none', color: '#3b82f6', cursor: 'pointer', padding: '4px' }} title="Edit charge"><Pencil size={15} /></button>
+                                                                                )}
+                                                                                {!charge.isPaid && (
+                                                                                    <button onClick={() => handleDeleteCharge(charge._id)} style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }} title="Delete charge"><Trash2 size={15} /></button>
+                                                                                )}
+                                                                            </div>
+                                                                        </td>
+                                                                    </>
+                                                                )}
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            ) : (
+                                                <div className="text-center py-6 text-gray-500 flex flex-col items-center">
+                                                    <Info className="mb-2 text-gray-300" size={32} />
+                                                    <p style={{ fontSize: '0.88rem' }}>No ad-hoc charges exist for this class.</p>
+                                                    <p className="text-xs text-gray-400 mt-1">To add custom class-wide fees, please use the Accountant Portal module.</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                         </div>
                     )}
 
@@ -312,6 +490,7 @@ const FeeManagementView = () => {
                                             className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
                                         >
                                             <option value="Monthly">Monthly</option>
+                                            <option value="Quarterly">Quarterly (Apr-Jun, Jul-Sep, Oct-Dec, Jan-Mar)</option>
                                             <option value="One-time">One-time (Admission)</option>
                                             <option value="Yearly">Yearly (Annual Charges)</option>
                                         </select>
@@ -350,8 +529,9 @@ const FeeManagementView = () => {
                                                 <td className="p-4 font-medium text-gray-800">{head.name}</td>
                                                 <td className="p-4">
                                                     <span className={`px-2 py-1 text-xs rounded-md ${head.frequency === 'Monthly' ? 'bg-blue-50 text-blue-700' :
-                                                        head.frequency === 'Yearly' ? 'bg-purple-50 text-purple-700' :
-                                                            'bg-orange-50 text-orange-700'
+                                                            head.frequency === 'Quarterly' ? 'bg-teal-50 text-teal-700' :
+                                                                head.frequency === 'Yearly' ? 'bg-purple-50 text-purple-700' :
+                                                                    'bg-orange-50 text-orange-700'
                                                         }`}>
                                                         {head.frequency}
                                                     </span>

@@ -98,6 +98,48 @@
     color: #ea580c;
 }
 
+.payment-badge.bank-transfer {
+    background: #fef9c3;
+    color: #a16207;
+}
+
+/* Status badges */
+.status-badge {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.status-badge.status-paid {
+    background: #dcfce7;
+    color: #16a34a;
+}
+
+.status-badge.status-partial {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+/* Download proof button */
+.action-btn-proof {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: #f0fdf4;
+    border: 1px solid #86efac;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    color: #16a34a;
+    transition: all 0.2s;
+}
+
+.action-btn-proof:hover {
+    background: #dcfce7;
+}
+
 .receipt-view-btn {
     display: flex;
     align-items: center;

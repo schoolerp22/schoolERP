@@ -94,6 +94,7 @@ router.get("/:teacherId/students/:classSection", async (req, res) => {
     const students = await db
       .collection("student")
       .find(query)
+      .sort({ "academic.roll_no": 1 })
       .toArray();
 
     // Map students to flatten structure for frontend

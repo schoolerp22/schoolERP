@@ -32,7 +32,7 @@ export const validatePayment = (data) => {
     if (!studentId) return { isValid: false, message: "studentId is required" };
     if (!isValidNumber(amount) || amount <= 0) return { isValid: false, message: "Amount must be a positive number" };
 
-    const validModes = ['Cash', 'Online', 'Card', 'UPI', 'Cheque', 'Cash with Bank Details'];
+    const validModes = ['Cash', 'Online', 'Card', 'UPI', 'Cheque', 'Bank Transfer', 'Cash with Bank Details'];
     if (!paymentMode || !validModes.includes(paymentMode)) {
         return { isValid: false, message: `paymentMode must be one of: ${validModes.join(', ')}` };
     }

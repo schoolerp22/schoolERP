@@ -125,6 +125,33 @@ export const saveFeeStructure = createAsyncThunk("accounting/saveFeeStructure", 
     }
 });
 
+export const addAdhocFee = createAsyncThunk("accounting/addAdhocFee", async (feeData, thunkAPI) => {
+    try {
+        return await accountingService.addAdhocFee(feeData);
+    } catch (error) {
+        const message = (error.response && error.response.data && error.response.data.message) || error.message || error.toString();
+        return thunkAPI.rejectWithValue(message);
+    }
+});
+
+
+export const updateAdhocFee = createAsyncThunk('accounting/updateAdhocFee', async (feeData, thunkAPI) => {
+    try {
+        const response = await accountingService.updateAdhocFee(feeData);
+        return response;
+    } catch (error) {
+        return thunkAPI.rejectWithValue(error.response?.data || error.message);
+    }
+});
+export const deleteAdhocFee = createAsyncThunk("accounting/deleteAdhocFee", async (feeId, thunkAPI) => {
+    try {
+        return await accountingService.deleteAdhocFee(feeId);
+    } catch (error) {
+        const message = (error.response && error.response.data && error.response.data.message) || error.message || error.toString();
+        return thunkAPI.rejectWithValue(message);
+    }
+});
+
 export const accountingSlice = createSlice({
     name: "accounting",
     initialState,
@@ -323,6 +350,36 @@ export const accountingSlice = createSlice({
             })
             .addCase(saveFeeStructure.rejected, (state, action) => {
                 state.isLoading = false;
+                state.isError = true;
+                state.message = action.payload;
+            })
+
+            // Add Ad-hoc Fee
+            .addCase(addAdhocFee.fulfilled, (state, action) => {
+                state.isSuccess = true;
+                state.message = "Additional charge added";
+            })
+            .addCase(addAdhocFee.rejected, (state, action) => {
+                state.isError = true;
+                state.message = action.payload;
+            })
+
+            // Delete Ad-hoc Fee
+            .addCase(deleteAdhocFee.fulfilled, (state, action) => {
+                state.isSuccess = true;
+                state.message = "Charge removed";
+            })
+            .addCase(deleteAdhocFee.rejected, (state, action) => {
+                state.isError = true;
+                state.message = action.payload;
+            })
+
+            // Update Ad-hoc Fee
+            .addCase(updateAdhocFee.fulfilled, (state) => {
+                state.isSuccess = true;
+                state.message = "Charge updated";
+            })
+            .addCase(updateAdhocFee.rejected, (state, action) => {
                 state.isError = true;
                 state.message = action.payload;
             });

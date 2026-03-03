@@ -1,7 +1,9 @@
 import express from "express";
 import { ObjectId } from "mongodb";
+import path from "path";
 import { verifyToken, authorizeRoles } from "../middlewares/authMiddleware.js";
 import { validateFeeSetup, validatePayment } from "../utils/validators.js";
+import upload from "../middleware/upload.js";
 
 const router = express.Router();
 const getDB = (req) => req.app.locals.db;
@@ -252,45 +254,209 @@ router.get("/students/:admissionNo/dues", authorizeRoles("schoolAdmin", "account
         const student = await db.collection("student").findOne({ admission_no: admissionNo });
         if (!student) return res.status(404).json({ message: "Student not found" });
 
-        // Get student's class — check both nested and flat field
         const studentClass = String(student.academic?.current_class || student.class || "");
         const studentSection = student.academic?.section || student.section || "";
 
-        console.log(`📚 Student ${admissionNo} class: "${studentClass}" section: "${studentSection}"`);
-
-        // Get fee structure for student's class — NO schoolId filter (admin/accountant may differ)
+        // Get fee structure for student's class
         let feeStructure = await db.collection("accounting_fee_structures").findOne({ className: studentClass });
-
-        // Try numeric version of class too (e.g., "2" vs 2)
         if (!feeStructure && !isNaN(Number(studentClass))) {
             feeStructure = await db.collection("accounting_fee_structures")
                 .findOne({ className: Number(studentClass) });
         }
-
-        console.log(`💰 Fee structure for class "${studentClass}":`, feeStructure ? "found" : "NOT FOUND");
 
         // Get all paid receipts for this student
         const paidReceipts = await db.collection("accounting_receipts")
             .find({ admissionNo, status: { $in: ["paid", "partial"] } })
             .toArray();
 
+        // Track paid months (fully paid only)
         const paidMonths = new Set();
+        // Track partially paid months and remaining amounts per fee head
+        const partialPayments = {}; // monthKey -> { headName -> amountPaid }
         paidReceipts.forEach(r => {
-            if (r.months) r.months.forEach(m => paidMonths.add(m));
+            const mKeys = r.months || (r.monthKey ? [r.monthKey] : []);
+            mKeys.forEach(m => {
+                // If the receipt itself is fully paid, mark month as such
+                if (r.status === "paid") {
+                    paidMonths.add(m);
+                }
+
+                // All receipts contribute to head-wise partial payments tracking
+                if (!partialPayments[m]) partialPayments[m] = {};
+                (r.feeBreakdown || []).forEach(fb => {
+                    const amt = Number(fb.amount || 0);
+                    partialPayments[m][fb.headName] = (partialPayments[m][fb.headName] || 0) + amt;
+                });
+            });
         });
 
-        // Generate last 6 months dues
-        const dues = [];
+        // Academic year logic (updated 2026-03-03)
+        // If current month is Jan-Mar, academic year started previous April
+        // If current month is Apr-Dec, academic year started this April
         const now = new Date();
-        for (let i = 5; i >= 0; i--) {
-            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-            const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-            const label = d.toLocaleString("default", { month: "short", year: "numeric" });
-            const isPaid = paidMonths.has(monthKey);
-            const monthlyFees = feeStructure?.feeHeads?.filter(h => h.frequency === "Monthly") || [];
-            const totalDue = monthlyFees.reduce((sum, h) => sum + (h.amount || 0), 0);
-            dues.push({ monthKey, label, isPaid, totalDue: isPaid ? 0 : totalDue, feeBreakdown: monthlyFees });
+        const currentMonth = now.getMonth(); // 0-based (0=Jan, 3=Apr, 11=Dec)
+        const currentYear = now.getFullYear();
+        let academicStartYear, academicEndYear;
+        if (currentMonth < 3) { // Jan(0), Feb(1), Mar(2)
+            academicStartYear = currentYear - 1;
+            academicEndYear = currentYear;
+        } else { // Apr(3) to Dec(11)
+            academicStartYear = currentYear;
+            academicEndYear = currentYear + 1;
         }
+
+        // Generate dues from April of start year to current month
+        const dues = [];
+        const monthlyFees = feeStructure?.feeHeads?.filter(h => h.frequency === "Monthly") || [];
+        const quarterlyFees = feeStructure?.feeHeads?.filter(h => h.frequency === "Quarterly") || [];
+        // Quarterly months (0-based): Apr=3, Jul=6, Oct=9, Jan=0
+        const quarterlyMonthNums = [3, 6, 9, 0];
+        // Quarter labels for display
+        const quarterLabel = { 3: "Apr-Jun", 6: "Jul-Sep", 9: "Oct-Dec", 0: "Jan-Mar" };
+
+        // Start from April of academic start year
+        let iterDate = new Date(academicStartYear, 3, 1); // April
+        // Generate dues for the entire academic year (up to March of academicEndYear)
+        const endDate = new Date(academicEndYear, 2, 1); // 1st of March
+        console.log(`[DUES] Academic year: ${academicStartYear}-${academicEndYear}, generating Apr ${academicStartYear} to Mar ${academicEndYear}`);
+
+        while (iterDate <= endDate) {
+            const y = iterDate.getFullYear();
+            const m = iterDate.getMonth(); // 0-based
+            const monthKey = `${y}-${String(m + 1).padStart(2, "0")}`;
+            const label = iterDate.toLocaleString("default", { month: "short", year: "numeric" });
+
+            const isQuarterStart = quarterlyMonthNums.includes(m);
+            const isFullyPaid = paidMonths.has(monthKey);
+
+            // Calculate per-head remaining amounts considering partial payments
+            const feeBreakdown = [];
+
+            // Add monthly fee heads on all months
+            monthlyFees.forEach(h => {
+                const paidForHead = partialPayments[monthKey]?.[h.name] || 0;
+                feeBreakdown.push({
+                    name: h.name,
+                    amount: h.amount || 0,
+                    paidAmount: paidForHead,
+                    remainingAmount: Math.max(0, (h.amount || 0) - paidForHead)
+                });
+            });
+
+            // Add quarterly fee heads on quarter-start months (Apr, Jul, Oct, Jan)
+            if (isQuarterStart) {
+                quarterlyFees.forEach(h => {
+                    const paidForHead = partialPayments[monthKey]?.[h.name] || 0;
+                    feeBreakdown.push({
+                        name: h.name,
+                        amount: h.amount || 0,
+                        paidAmount: paidForHead,
+                        remainingAmount: Math.max(0, (h.amount || 0) - paidForHead),
+                        isQuarterly: true
+                    });
+                });
+            }
+
+            const totalDue = feeBreakdown.reduce((sum, h) => sum + h.remainingAmount, 0);
+
+            // Push the month for processing; isPaid will be finalized after ad-hoc merge
+            if (feeBreakdown.length > 0 || isFullyPaid) {
+                dues.push({ monthKey, label, isPaid: isFullyPaid, totalDue, feeBreakdown });
+            }
+
+            // Move to next month
+            iterDate = new Date(y, m + 1, 1);
+        }
+
+        // One-time fees
+        const oneTimeFees = [];
+        const oneTimeHeads = feeStructure?.feeHeads?.filter(h => h.frequency === "One-time") || [];
+        // Check which one-time fees have been paid
+        const paidOneTimeHeads = new Set();
+        paidReceipts.forEach(r => {
+            (r.feeBreakdown || []).forEach(fb => paidOneTimeHeads.add(fb.headName));
+        });
+        oneTimeHeads.forEach(h => {
+            const isPaid = paidOneTimeHeads.has(h.name);
+            oneTimeFees.push({
+                name: h.name,
+                amount: h.amount || 0,
+                isPaid
+            });
+        });
+        // Ad-hoc / Additional fees (per-student + class-level)
+        const allAdhocFees = await db.collection("accounting_adhoc_fees")
+            .find({
+                $or: [
+                    { appliedTo: "student", admissionNo },
+                    { appliedTo: "class", className: studentClass }
+                ]
+            })
+            .sort({ createdAt: -1 })
+            .toArray();
+
+        // Filter class-level fees by section
+        const adhocFiltered = allAdhocFees.filter(f => {
+            if (f.appliedTo === "class" && f.section && f.section !== "") {
+                return f.section === studentSection;
+            }
+            return true;
+        });
+
+        // Separate by frequency
+        const monthlyAdhoc = adhocFiltered.filter(f => f.frequency === "Monthly");
+        const quarterlyAdhoc = adhocFiltered.filter(f => f.frequency === "Quarterly");
+        const onetimeAdhoc = adhocFiltered.filter(f => !f.frequency || f.frequency === "One-time");
+
+        // Merge monthly/quarterly ad-hoc fees into existing dues
+        dues.forEach(due => {
+            const dueMonth = parseInt(due.monthKey.split("-")[1]) - 1; // 0-based
+
+            // Add monthly ad-hoc heads
+            monthlyAdhoc.forEach(af => {
+                const paidForHead = partialPayments[due.monthKey]?.[af.name] || 0;
+                const remaining = Math.max(0, af.amount - paidForHead);
+                if (remaining > 0) {
+                    due.feeBreakdown.push({
+                        name: af.name,
+                        amount: af.amount,
+                        paidAmount: paidForHead,
+                        remainingAmount: remaining,
+                        isAdhoc: true,
+                        category: af.category || "Other"
+                    });
+                    due.totalDue += remaining;
+                }
+            });
+
+            // Add quarterly ad-hoc heads (Apr, Jul, Oct, Jan)
+            if (quarterlyMonthNums.includes(dueMonth)) {
+                quarterlyAdhoc.forEach(af => {
+                    const paidForHead = partialPayments[due.monthKey]?.[af.name] || 0;
+                    const remaining = Math.max(0, af.amount - paidForHead);
+                    if (remaining > 0) {
+                        due.feeBreakdown.push({
+                            name: af.name,
+                            amount: af.amount,
+                            paidAmount: paidForHead,
+                            remainingAmount: remaining,
+                            isAdhoc: true,
+                            category: af.category || "Other"
+                        });
+                        due.totalDue += remaining;
+                    }
+                });
+            }
+        });
+
+        // Finalize isPaid and totalDue consistency
+        dues.forEach(due => {
+            due.isPaid = (due.totalDue <= 0);
+        });
+
+        // Re-filter: remove months that became fully paid after partial payments
+        const finalDues = dues;
+        console.log(`[DUES_DEBUG] Total dues in response: ${finalDues.length}.`);
 
         res.json({
             student: {
@@ -300,7 +466,9 @@ router.get("/students/:admissionNo/dues", authorizeRoles("schoolAdmin", "account
                 section: studentSection,
             },
             feeStructure,
-            dues
+            dues: finalDues,
+            oneTimeFees,
+            adhocFees: onetimeAdhoc  // Only one-time ad-hoc fees shown separately
         });
     } catch (error) {
         console.error("Student dues error:", error);
@@ -312,16 +480,33 @@ router.get("/students/:admissionNo/dues", authorizeRoles("schoolAdmin", "account
 // 5. PAYMENTS & RECEIPTS
 // ==========================================
 
-// Collect Payment
-router.post("/payments/collect", authorizeRoles("schoolAdmin", "accountant", "superAdmin"), async (req, res) => {
+// Collect Payment (supports file upload for transaction proof)
+router.post("/payments/collect", authorizeRoles("schoolAdmin", "accountant", "superAdmin"), upload.single('transactionProof'), async (req, res) => {
     try {
         const db = getDB(req);
         const schoolId = req.user.schoolId;
-        const { admissionNo, months, feeBreakdown, totalAmount, paymentMode, chequeNo, bankName, remarks } = req.body;
+        const {
+            admissionNo, months, feeBreakdown, totalAmount, amountPaid,
+            paymentMode, chequeNo, bankName, transactionId,
+            lateFee, discountAmount, remarks
+        } = req.body;
 
-        if (!admissionNo || !totalAmount || !paymentMode) {
+        // Parse JSON strings (FormData sends strings)
+        const parsedMonths = typeof months === 'string' ? JSON.parse(months) : (months || []);
+        const parsedFeeBreakdown = typeof feeBreakdown === 'string' ? JSON.parse(feeBreakdown) : (feeBreakdown || []);
+        const parsedTotalAmount = Number(totalAmount) || 0;
+        const parsedAmountPaid = Number(amountPaid) || parsedTotalAmount;
+        const parsedLateFee = Number(lateFee) || 0;
+        const parsedDiscount = Number(discountAmount) || 0;
+
+        if (!admissionNo || !parsedTotalAmount || !paymentMode) {
             return res.status(400).json({ message: "admissionNo, totalAmount, and paymentMode are required" });
         }
+
+        // Calculate remaining due
+        const netPayable = parsedTotalAmount + parsedLateFee - parsedDiscount;
+        const remainingDue = Math.max(0, netPayable - parsedAmountPaid);
+        const paymentStatus = remainingDue > 0 ? "partial" : "paid";
 
         // Generate receipt number
         const receiptCount = await db.collection("accounting_receipts").countDocuments({ schoolId });
@@ -333,16 +518,24 @@ router.post("/payments/collect", authorizeRoles("schoolAdmin", "accountant", "su
             receiptNo,
             admissionNo,
             studentName: student ? `${student.personal_details?.first_name || ""} ${student.personal_details?.last_name || ""}`.trim() : "Unknown",
-            class: student?.class || "",
-            section: student?.section || "",
-            months: months || [],
-            feeBreakdown: feeBreakdown || [],
-            totalAmount,
+            class: String(student?.academic?.current_class || student?.class || ""),
+            section: student?.academic?.section || student?.section || "",
+            months: parsedMonths,
+            feeBreakdown: parsedFeeBreakdown,
+            totalAmount: parsedTotalAmount,
+            lateFee: parsedLateFee,
+            discountAmount: parsedDiscount,
+            netPayable,
+            amountPaid: parsedAmountPaid,
+            remainingDue,
             paymentMode,
+            transactionId: transactionId || null,
             chequeNo: chequeNo || null,
             bankName: bankName || null,
+            transactionProof: req.file ? `/uploads/${req.file.filename}` : null,
+            transactionProofOriginalName: req.file ? req.file.originalname : null,
             remarks: remarks || "",
-            status: "paid",
+            status: paymentStatus,
             collectedBy: req.user.id,
             schoolId,
             paidAt: new Date(),
@@ -352,6 +545,7 @@ router.post("/payments/collect", authorizeRoles("schoolAdmin", "accountant", "su
         const result = await db.collection("accounting_receipts").insertOne(receipt);
         res.status(201).json({ message: "Payment collected successfully", receiptId: result.insertedId, receiptNo, receipt });
     } catch (error) {
+        console.error("Payment collect error:", error);
         res.status(500).json({ message: "Error collecting payment", error: error.message });
     }
 });
@@ -415,6 +609,28 @@ router.get("/payments/receipt/:id", authorizeRoles("schoolAdmin", "accountant", 
     }
 });
 
+// Download transaction proof file
+router.get("/payments/receipt/:id/download-proof", authorizeRoles("schoolAdmin", "accountant", "superAdmin"), async (req, res) => {
+    try {
+        const db = getDB(req);
+        let receipt;
+        try {
+            receipt = await db.collection("accounting_receipts").findOne({ _id: new ObjectId(req.params.id) });
+        } catch {
+            receipt = await db.collection("accounting_receipts").findOne({ receiptNo: req.params.id });
+        }
+        if (!receipt || !receipt.transactionProof) {
+            return res.status(404).json({ message: "Transaction proof not found" });
+        }
+        const __dirname = path.resolve();
+        const filePath = path.join(__dirname, receipt.transactionProof);
+        const fileName = receipt.transactionProofOriginalName || path.basename(receipt.transactionProof);
+        res.download(filePath, fileName);
+    } catch (error) {
+        res.status(500).json({ message: "Error downloading proof", error: error.message });
+    }
+});
+
 // ==========================================
 // 6. DASHBOARD STATS
 // ==========================================
@@ -463,6 +679,153 @@ router.get("/dashboard/stats", authorizeRoles("schoolAdmin", "accountant", "supe
         });
     } catch (error) {
         res.status(500).json({ message: "Error fetching dashboard stats", error: error.message });
+    }
+});
+// ==========================================
+// 7. AD-HOC / ADDITIONAL FEES
+// ==========================================
+
+// Create ad-hoc fee (per student or per class)
+router.post("/adhoc-fees", authorizeRoles("schoolAdmin", "accountant", "superAdmin"), async (req, res) => {
+    try {
+        const db = getDB(req);
+        const { name, amount, appliedTo, admissionNo, className, section, month, category, frequency } = req.body;
+        const schoolId = req.user.schoolId;
+
+        if (!name || !amount) {
+            return res.status(400).json({ message: "Fee name and amount are required" });
+        }
+        if (!appliedTo || !["student", "class"].includes(appliedTo)) {
+            return res.status(400).json({ message: "appliedTo must be 'student' or 'class'" });
+        }
+        if (appliedTo === "student" && !admissionNo) {
+            return res.status(400).json({ message: "admissionNo is required for student-level fees" });
+        }
+        if (appliedTo === "class" && !className) {
+            return res.status(400).json({ message: "className is required for class-level fees" });
+        }
+
+        const fee = {
+            name: name.trim(),
+            amount: Number(amount),
+            appliedTo,
+            admissionNo: appliedTo === "student" ? admissionNo : null,
+            className: appliedTo === "class" ? String(className) : null,
+            section: section || "",  // optional section filter
+            frequency: frequency || "One-time",  // Monthly, One-time, Quarterly
+            month: month || "",  // for One-time: specific month (optional)
+            category: category || "Other",  // Activity, Event, Fine, Program, Other
+            isPaid: false,
+            paidAmount: 0,
+            addedBy: req.user.id,
+            addedByRole: req.user.role,
+            schoolId,
+            createdAt: new Date()
+        };
+
+        const result = await db.collection("accounting_adhoc_fees").insertOne(fee);
+        res.status(201).json({ message: "Additional fee added successfully", feeId: result.insertedId, fee });
+    } catch (error) {
+        console.error("Ad-hoc fee create error:", error);
+        res.status(500).json({ message: "Error adding fee", error: error.message });
+    }
+});
+
+// Get ad-hoc fees for a student (includes class-level fees)
+router.get("/adhoc-fees/student/:admissionNo", authorizeRoles("schoolAdmin", "accountant", "superAdmin"), async (req, res) => {
+    try {
+        const db = getDB(req);
+        const { admissionNo } = req.params;
+
+        // Get student's class and section
+        const student = await db.collection("student").findOne({ admission_no: admissionNo });
+        const studentClass = String(student?.academic?.current_class || student?.class || "");
+        const studentSection = student?.academic?.section || student?.section || "";
+
+        // Get fees applied to this student directly + fees applied to their class
+        const fees = await db.collection("accounting_adhoc_fees")
+            .find({
+                $or: [
+                    { appliedTo: "student", admissionNo },
+                    { appliedTo: "class", className: studentClass }
+                ]
+            })
+            .sort({ createdAt: -1 })
+            .toArray();
+
+        // Filter class-level fees by section if section is specified
+        const filtered = fees.filter(f => {
+            if (f.appliedTo === "class" && f.section && f.section !== "") {
+                return f.section === studentSection;
+            }
+            return true;
+        });
+
+        res.json(filtered);
+    } catch (error) {
+        res.status(500).json({ message: "Error fetching ad-hoc fees", error: error.message });
+    }
+});
+
+// Get ad-hoc fees for a class
+router.get("/adhoc-fees/class/:className", authorizeRoles("schoolAdmin", "accountant", "superAdmin"), async (req, res) => {
+    try {
+        const db = getDB(req);
+        const { className } = req.params;
+        const fees = await db.collection("accounting_adhoc_fees")
+            .find({ appliedTo: "class", className })
+            .sort({ createdAt: -1 })
+            .toArray();
+        res.json(fees);
+    } catch (error) {
+        res.status(500).json({ message: "Error fetching class fees", error: error.message });
+    }
+});
+
+// Delete an unpaid ad-hoc fee
+router.delete("/adhoc-fees/:id", authorizeRoles("schoolAdmin", "accountant", "superAdmin"), async (req, res) => {
+    try {
+        const db = getDB(req);
+        const fee = await db.collection("accounting_adhoc_fees").findOne({ _id: new ObjectId(req.params.id) });
+        if (!fee) return res.status(404).json({ message: "Fee not found" });
+        if (fee.isPaid) return res.status(400).json({ message: "Cannot delete a paid fee" });
+
+        await db.collection("accounting_adhoc_fees").deleteOne({ _id: new ObjectId(req.params.id) });
+        res.json({ message: "Fee deleted successfully" });
+    } catch (error) {
+        res.status(500).json({ message: "Error deleting fee", error: error.message });
+    }
+});
+
+
+
+// Edit an unpaid ad-hoc fee
+router.put("/adhoc-fees/:id", authorizeRoles("schoolAdmin", "accountant", "superAdmin"), async (req, res) => {
+    try {
+        const db = getDB(req);
+        const feeId = new ObjectId(req.params.id);
+        const { name, amount, category, frequency, section } = req.body;
+
+        const fee = await db.collection("accounting_adhoc_fees").findOne({ _id: feeId });
+        if (!fee) return res.status(404).json({ message: "Fee not found" });
+        if (fee.isPaid && amount !== undefined && Number(amount) !== fee.amount) {
+            return res.status(400).json({ message: "Cannot modify amount of a paid fee" });
+        }
+
+        const updates = {};
+        if (name) updates.name = name;
+        if (amount !== undefined) updates.amount = Number(amount);
+        if (category) updates.category = category;
+        if (frequency) updates.frequency = frequency;
+        if (section !== undefined) updates.section = section;
+
+        await db.collection("accounting_adhoc_fees").updateOne(
+            { _id: feeId },
+            { $set: updates }
+        );
+        res.json({ message: "Fee updated successfully" });
+    } catch (error) {
+        res.status(500).json({ message: "Error updating fee", error: error.message });
     }
 });
 

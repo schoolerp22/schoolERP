@@ -51,7 +51,10 @@ const getStudentDues = async (admissionNo) => {
 
 // Payments & Receipts
 const collectPayment = async (paymentData) => {
-    const response = await API.post("/api/accounting/payments/collect", paymentData);
+    // paymentData is a FormData object (to support file upload)
+    const response = await API.post("/api/accounting/payments/collect", paymentData, {
+        headers: { "Content-Type": "multipart/form-data" }
+    });
     return response.data;
 };
 
@@ -76,6 +79,26 @@ const getDashboardStats = async () => {
     const response = await API.get("/api/accounting/dashboard/stats");
     return response.data;
 };
+// Ad-hoc / Additional Fees
+const addAdhocFee = async (feeData) => {
+    const response = await API.post("/api/accounting/adhoc-fees", feeData);
+    return response.data;
+};
+
+const deleteAdhocFee = async (feeId) => {
+    const response = await API.delete(`/api/accounting/adhoc-fees/${feeId}`);
+    return response.data;
+};
+
+const updateAdhocFee = async ({ feeId, data }) => {
+    const response = await API.put(`/api/accounting/adhoc-fees/${feeId}`, data);
+    return response.data;
+};
+
+const getAdhocFeesByClass = async (className) => {
+    const response = await API.get(`/api/accounting/adhoc-fees/class/${className}`);
+    return response.data;
+};
 
 const accountingService = {
     getClasses,
@@ -89,7 +112,11 @@ const accountingService = {
     collectPayment,
     getReceipts,
     getReceiptById,
-    getDashboardStats
+    getDashboardStats,
+    addAdhocFee,
+    deleteAdhocFee,
+    updateAdhocFee,
+    getAdhocFeesByClass
 };
 
 export default accountingService;

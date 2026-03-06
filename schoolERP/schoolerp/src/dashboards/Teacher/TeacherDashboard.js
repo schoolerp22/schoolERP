@@ -236,7 +236,7 @@ const TeacherDashboard = () => {
           leaveRequests={leaveRequests}
         />
 
-        <main className={`flex-1 min-h-0 ${currentView === 'class-chat' ? 'overflow-hidden p-0' : 'overflow-y-auto custom-scrollbar p-4 md:p-6 pb-24 md:pb-6'}`}>
+        <main className={`flex-1 min-h-0 ${currentView === 'class-chat' ? 'overflow-hidden p-0 pb-20 md:pb-0' : 'overflow-y-auto custom-scrollbar p-4 md:p-6 pb-24 md:pb-6'}`}>
           {renderView()}
         </main>
       </div>

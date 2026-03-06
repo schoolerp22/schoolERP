@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useChat } from '../../../hooks/useChat';
 import { useWebRTC } from '../../../hooks/useWebRTC';
 import CallModal from '../CallModal/CallModal';
-import { Send, Paperclip, Image as ImageIcon, FileText, X, Settings, Users, Loader, Check, Pencil, Trash2, SmilePlus, Eye, Search, Phone, Video } from 'lucide-react';
+import { Send, Paperclip, Image as ImageIcon, FileText, X, Settings, Users, Loader, Check, Pencil, Trash2, SmilePlus, Eye, Search, Phone, Video, Mic } from 'lucide-react';
+import VoiceNotePlayer from './VoiceNotePlayer';
 import './ClassChat.css';
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '🙏'];
@@ -185,12 +186,92 @@ const ClassChat = ({ classNum, section, currentUser, directRoomId }) => {
 
     const handleFileSelect = (e) => {
         if (e.target.files && e.target.files[0]) {
-            if (e.target.files[0].size > 5 * 1024 * 1024) {
-                alert("File size must be under 5MB");
+            if (e.target.files[0].size > 10 * 1024 * 1024) {
+                alert("File size must be under 10MB");
                 return;
             }
             setSelectedFile(e.target.files[0]);
         }
+    };
+
+    // Voice Note State
+    const [isRecording, setIsRecording] = useState(false);
+    const [recordingTime, setRecordingTime] = useState(0);
+    const mediaRecorderRef = useRef(null);
+    const chunksRef = useRef([]);
+    const timerRef = useRef(null);
+
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mediaRecorder = new MediaRecorder(stream);
+            mediaRecorderRef.current = mediaRecorder;
+            chunksRef.current = [];
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) {
+                    chunksRef.current.push(e.data);
+                }
+            };
+
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
+                const fileName = `voice_note_${Date.now()}.webm`;
+                const file = new File([audioBlob], fileName, { type: 'audio/webm' });
+
+                // Stop all tracks in the stream
+                stream.getTracks().forEach(track => track.stop());
+
+                // Send the voice note
+                try {
+                    setIsSending(true);
+                    await sendMessage('', file, currentUser.name);
+                } catch (err) {
+                    console.error("Failed to send voice note:", err);
+                    alert("Failed to send voice note");
+                } finally {
+                    setIsSending(false);
+                }
+            };
+
+            mediaRecorder.start();
+            setIsRecording(true);
+            setRecordingTime(0);
+            timerRef.current = setInterval(() => {
+                setRecordingTime(prev => prev + 1);
+            }, 1000);
+        } catch (err) {
+            console.error("Recording error:", err);
+            alert("Could not access microphone.");
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
+            clearInterval(timerRef.current);
+        }
+    };
+
+    const cancelRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.onstop = null; // Prevent sending
+            mediaRecorderRef.current.stop();
+            // Stop all tracks
+            const tracks = mediaRecorderRef.current.stream.getTracks();
+            tracks.forEach(track => track.stop());
+
+            setIsRecording(false);
+            clearInterval(timerRef.current);
+            setRecordingTime(0);
+        }
+    };
+
+    const formatDuration = (seconds) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
     const handleContextMenu = (e, msgId, senderId) => {
@@ -278,6 +359,31 @@ const ClassChat = ({ classNum, section, currentUser, directRoomId }) => {
         if (!firebaseTimestamp) return '';
         const date = firebaseTimestamp.toDate ? firebaseTimestamp.toDate() : new Date(firebaseTimestamp);
         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    };
+
+    const getRelativeDate = (firebaseTimestamp) => {
+        if (!firebaseTimestamp) return '';
+        const date = firebaseTimestamp.toDate ? firebaseTimestamp.toDate() : new Date(firebaseTimestamp);
+        const today = new Date();
+        const yesterday = new Date();
+        yesterday.setDate(today.getDate() - 1);
+
+        if (date.toDateString() === today.toDateString()) return 'Today';
+        if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+
+        const diffDays = Math.floor((today - date) / (1000 * 60 * 60 * 24));
+        if (diffDays < 7) {
+            return date.toLocaleDateString([], { weekday: 'long' });
+        }
+        return date.toLocaleDateString([], { day: 'numeric', month: 'long', year: 'numeric' });
+    };
+
+    const canEditMessage = (msg) => {
+        if (msg.senderId !== currentUser.id) return false;
+        if (!msg.timestamp) return true; // Just sent
+        const timestamp = msg.timestamp.toDate ? msg.timestamp.toDate() : new Date(msg.timestamp);
+        const diffMinutes = Math.floor((new Date() - timestamp) / (1000 * 60));
+        return diffMinutes < 10;
     };
 
     const isAdminOrTeacher = currentUser.role === 'admin' || currentUser.role === 'teacher';
@@ -669,154 +775,175 @@ const ClassChat = ({ classNum, section, currentUser, directRoomId }) => {
                         const hasReactions = Object.keys(reactions).length > 0;
                         const seenCount = (msg.seenBy || []).filter(id => id !== msg.senderId).length;
 
+                        // Date header logic
+                        const msgDate = msg.timestamp?.toDate ? msg.timestamp.toDate().toDateString() : new Date(msg.timestamp).toDateString();
+                        const prevMsg = index > 0 ? messages[index - 1] : null;
+                        const prevMsgDate = prevMsg?.timestamp?.toDate ? prevMsg.timestamp.toDate().toDateString() : (prevMsg ? new Date(prevMsg.timestamp).toDateString() : null);
+                        const showDateHeader = msgDate !== prevMsgDate;
+
                         return (
-                            <div key={msg.id} className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
-                                {showName && (
-                                    <span className="text-xs text-gray-500 mb-1 ml-1 flex items-center gap-2">
-                                        {msg.senderName}
-                                        {msg.senderRole === 'teacher' && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded uppercase font-bold">Teacher</span>}
-                                        {msg.senderRole === 'admin' && <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded uppercase font-bold">Admin</span>}
-                                    </span>
+                            <React.Fragment key={msg.id}>
+                                {showDateHeader && (
+                                    <div className="flex justify-center my-4">
+                                        <span className="chat-date-header">
+                                            {getRelativeDate(msg.timestamp)}
+                                        </span>
+                                    </div>
                                 )}
+                                <div className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
+                                    {showName && (
+                                        <span className="text-xs text-gray-500 mb-1 ml-1 flex items-center gap-2">
+                                            {msg.senderName}
+                                            {msg.senderRole === 'teacher' && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded uppercase font-bold">Teacher</span>}
+                                            {msg.senderRole === 'admin' && <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded uppercase font-bold">Admin</span>}
+                                        </span>
+                                    )}
 
-                                <div className="relative group max-w-[88%] sm:max-w-[75%]">
-                                    <div
-                                        className={`rounded-2xl px-3 sm:px-4 py-2 shadow-sm relative ${isMine
-                                            ? 'bg-blue-600 text-white rounded-br-sm'
-                                            : 'bg-white text-gray-800 rounded-bl-sm border border-gray-100'
-                                            }`}
-                                        onContextMenu={(e) => handleContextMenu(e, msg.id, msg.senderId)}
-                                        onTouchStart={(e) => handleLongPress.onTouchStart(e, msg.id, msg.senderId)}
-                                        onTouchEnd={handleLongPress.onTouchEnd}
-                                    >
-                                        {editingMsgId === msg.id ? (
-                                            <div className="flex flex-col gap-2 min-w-[200px]">
-                                                <input
-                                                    ref={editInputRef}
-                                                    value={editText}
-                                                    onChange={(e) => setEditText(e.target.value)}
-                                                    onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit(); }}
-                                                    className="bg-white/20 text-current rounded-lg px-3 py-1.5 text-sm outline-none border border-white/30 placeholder-white/50 w-full"
-                                                />
-                                                <div className="flex gap-2 justify-end">
-                                                    <button onClick={cancelEdit} className="text-xs opacity-70 hover:opacity-100 px-2 py-1 rounded">Cancel</button>
-                                                    <button onClick={saveEdit} className="text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded font-medium">Save</button>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <>
-                                                {msg.fileUrl && (
-                                                    <div className="mb-2 mt-1">
-                                                        {msg.fileType?.startsWith('image/') ? (
-                                                            <a href={msg.fileUrl} target="_blank" rel="noreferrer">
-                                                                <img src={msg.fileUrl} alt="Attached" className="max-w-full rounded-lg max-h-48 object-cover border border-black/10 hover:opacity-90 transition-opacity" />
-                                                            </a>
-                                                        ) : (
-                                                            <a
-                                                                href={msg.fileUrl}
-                                                                target="_blank"
-                                                                rel="noreferrer"
-                                                                className={`flex items-center gap-2 p-2 rounded-lg border ${isMine ? 'bg-blue-700 border-blue-400 text-white' : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'} transition-colors`}
-                                                            >
-                                                                <FileText size={18} />
-                                                                <span className="text-sm truncate max-w-[150px]">{msg.fileName}</span>
-                                                            </a>
-                                                        )}
+                                    <div className="relative group max-w-[88%] sm:max-w-[75%]">
+                                        <div
+                                            className={`rounded-2xl px-3 sm:px-4 py-2 shadow-sm relative ${isMine
+                                                ? 'bg-blue-600 text-white rounded-br-sm'
+                                                : 'bg-white text-gray-800 rounded-bl-sm border border-gray-100'
+                                                }`}
+                                            onContextMenu={(e) => handleContextMenu(e, msg.id, msg.senderId)}
+                                            onTouchStart={(e) => handleLongPress.onTouchStart(e, msg.id, msg.senderId)}
+                                            onTouchEnd={handleLongPress.onTouchEnd}
+                                        >
+                                            {editingMsgId === msg.id ? (
+                                                <div className="flex flex-col gap-2 min-w-[200px]">
+                                                    <input
+                                                        ref={editInputRef}
+                                                        value={editText}
+                                                        onChange={(e) => setEditText(e.target.value)}
+                                                        onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit(); }}
+                                                        className="bg-white/20 text-current rounded-lg px-3 py-1.5 text-sm outline-none border border-white/30 placeholder-white/50 w-full"
+                                                    />
+                                                    <div className="flex gap-2 justify-end">
+                                                        <button onClick={cancelEdit} className="text-xs opacity-70 hover:opacity-100 px-2 py-1 rounded">Cancel</button>
+                                                        <button onClick={saveEdit} className="text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded font-medium">Save</button>
                                                     </div>
-                                                )}
-
-                                                {msg.text && (
-                                                    <p className="whitespace-pre-wrap break-words text-[15px] leading-relaxed">
-                                                        {msg.text}
-                                                    </p>
-                                                )}
-
-                                                <div className={`mt-1 text-[11px] ${isMine ? 'text-blue-200' : 'text-gray-400'} flex items-center justify-end gap-1.5`}>
-                                                    {msg.edited && <span className="italic">edited</span>}
-                                                    {formatTime(msg.timestamp)}
-                                                    {isMine && <Check size={12} className="inline-block" />}
                                                 </div>
-                                            </>
+                                            ) : (
+                                                <>
+                                                    {msg.fileUrl && (
+                                                        <div className="mb-2 mt-1">
+                                                            {msg.fileType?.startsWith('image/') ? (
+                                                                <a href={msg.fileUrl} target="_blank" rel="noreferrer">
+                                                                    <img src={msg.fileUrl} alt="Attached" className="max-w-full rounded-lg max-h-48 object-cover border border-black/10 hover:opacity-90 transition-opacity" />
+                                                                </a>
+                                                            ) : msg.fileType?.startsWith('audio/') ? (
+                                                                <VoiceNotePlayer
+                                                                    url={msg.fileUrl}
+                                                                    senderId={msg.senderId}
+                                                                    currentUserId={currentUser.id}
+                                                                />
+                                                            ) : (
+                                                                <a
+                                                                    href={msg.fileUrl}
+                                                                    target="_blank"
+                                                                    rel="noreferrer"
+                                                                    className={`flex items-center gap-2 p-2 rounded-lg border ${isMine ? 'bg-blue-700 border-blue-400 text-white' : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'} transition-colors`}
+                                                                >
+                                                                    <FileText size={18} />
+                                                                    <span className="text-sm truncate max-w-[150px]">{msg.fileName}</span>
+                                                                </a>
+                                                            )}
+                                                        </div>
+                                                    )}
+
+                                                    {msg.text && (
+                                                        <p className="whitespace-pre-wrap break-words text-[15px] leading-relaxed">
+                                                            {msg.text}
+                                                        </p>
+                                                    )}
+
+                                                    <div className={`mt-1 text-[11px] ${isMine ? 'text-blue-200' : 'text-gray-400'} flex items-center justify-end gap-1.5`}>
+                                                        {msg.edited && <span className="italic">edited</span>}
+                                                        {formatTime(msg.timestamp)}
+                                                        {isMine && <Check size={12} className="inline-block" />}
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+
+                                        {editingMsgId !== msg.id && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setEmojiPickerMsgId(emojiPickerMsgId === msg.id ? null : msg.id); }}
+                                                className={`absolute ${isMine ? '-left-8' : '-right-8'} top-1 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity bg-white shadow border border-gray-100 hover:bg-gray-50 z-10 hidden sm:block`}
+                                            >
+                                                <SmilePlus size={14} className="text-gray-400" />
+                                            </button>
+                                        )}
+
+                                        {emojiPickerMsgId === msg.id && (
+                                            <div
+                                                className={`absolute ${isMine ? 'right-0' : 'left-0'} -top-10 bg-white shadow-lg rounded-full px-2 py-1 flex gap-1 border border-gray-100 z-20`}
+                                                onClick={e => e.stopPropagation()}
+                                            >
+                                                {QUICK_EMOJIS.map(emoji => (
+                                                    <button
+                                                        key={emoji}
+                                                        onClick={() => handleReaction(msg.id, emoji)}
+                                                        className="hover:scale-125 transition-transform text-lg px-1 py-0.5"
+                                                    >
+                                                        {emoji}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {hasReactions && (
+                                            <div className={`flex flex-wrap gap-1 mt-1 ${isMine ? 'justify-end' : 'justify-start'}`}>
+                                                {Object.entries(reactions).map(([emoji, users]) => (
+                                                    <button
+                                                        key={emoji}
+                                                        onClick={(e) => { e.stopPropagation(); handleReaction(msg.id, emoji); }}
+                                                        className={`inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full border transition-colors ${users.includes(currentUser.id)
+                                                            ? 'bg-blue-50 border-blue-200 text-blue-700'
+                                                            : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                                                            }`}
+                                                    >
+                                                        <span>{emoji}</span>
+                                                        <span className="font-medium">{users.length}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {editingMsgId !== msg.id && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setEmojiPickerMsgId(emojiPickerMsgId === msg.id ? null : msg.id); }}
+                                                className={`sm:hidden absolute ${isMine ? '-left-8' : '-right-8'} top-1 p-1 rounded-full bg-white shadow border border-gray-100`}
+                                            >
+                                                <SmilePlus size={14} className="text-gray-400" />
+                                            </button>
                                         )}
                                     </div>
 
-                                    {editingMsgId !== msg.id && (
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); setEmojiPickerMsgId(emojiPickerMsgId === msg.id ? null : msg.id); }}
-                                            className={`absolute ${isMine ? '-left-8' : '-right-8'} top-1 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity bg-white shadow border border-gray-100 hover:bg-gray-50 z-10 hidden sm:block`}
-                                        >
-                                            <SmilePlus size={14} className="text-gray-400" />
-                                        </button>
-                                    )}
+                                    {isMine && seenCount > 0 && (
+                                        <div className="relative">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setSeenByMsgId(seenByMsgId === msg.id ? null : msg.id); }}
+                                                className="text-[11px] text-gray-400 mt-0.5 mr-1 flex items-center gap-1 hover:text-gray-600 transition-colors"
+                                            >
+                                                <Eye size={11} />
+                                                Seen by {seenCount}
+                                            </button>
 
-                                    {emojiPickerMsgId === msg.id && (
-                                        <div
-                                            className={`absolute ${isMine ? 'right-0' : 'left-0'} -top-10 bg-white shadow-lg rounded-full px-2 py-1 flex gap-1 border border-gray-100 z-20`}
-                                            onClick={e => e.stopPropagation()}
-                                        >
-                                            {QUICK_EMOJIS.map(emoji => (
-                                                <button
-                                                    key={emoji}
-                                                    onClick={() => handleReaction(msg.id, emoji)}
-                                                    className="hover:scale-125 transition-transform text-lg px-1 py-0.5"
-                                                >
-                                                    {emoji}
-                                                </button>
-                                            ))}
+                                            {seenByMsgId === msg.id && isAdminOrTeacher && (
+                                                <div className="absolute right-0 top-5 bg-white shadow-lg rounded-lg p-3 z-20 border border-gray-100 min-w-[150px]" onClick={e => e.stopPropagation()}>
+                                                    <h4 className="text-xs font-semibold text-gray-500 mb-2 uppercase">Seen by</h4>
+                                                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                                                        {(msg.seenBy || []).filter(id => id !== msg.senderId).map((userId, i) => (
+                                                            <div key={i} className="text-xs text-gray-700 py-0.5">{userId}</div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
-                                    )}
-
-                                    {hasReactions && (
-                                        <div className={`flex flex-wrap gap-1 mt-1 ${isMine ? 'justify-end' : 'justify-start'}`}>
-                                            {Object.entries(reactions).map(([emoji, users]) => (
-                                                <button
-                                                    key={emoji}
-                                                    onClick={(e) => { e.stopPropagation(); handleReaction(msg.id, emoji); }}
-                                                    className={`inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full border transition-colors ${users.includes(currentUser.id)
-                                                        ? 'bg-blue-50 border-blue-200 text-blue-700'
-                                                        : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
-                                                        }`}
-                                                >
-                                                    <span>{emoji}</span>
-                                                    <span className="font-medium">{users.length}</span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-
-                                    {editingMsgId !== msg.id && (
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); setEmojiPickerMsgId(emojiPickerMsgId === msg.id ? null : msg.id); }}
-                                            className={`sm:hidden absolute ${isMine ? '-left-8' : '-right-8'} top-1 p-1 rounded-full bg-white shadow border border-gray-100`}
-                                        >
-                                            <SmilePlus size={14} className="text-gray-400" />
-                                        </button>
                                     )}
                                 </div>
-
-                                {isMine && seenCount > 0 && (
-                                    <div className="relative">
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); setSeenByMsgId(seenByMsgId === msg.id ? null : msg.id); }}
-                                            className="text-[11px] text-gray-400 mt-0.5 mr-1 flex items-center gap-1 hover:text-gray-600 transition-colors"
-                                        >
-                                            <Eye size={11} />
-                                            Seen by {seenCount}
-                                        </button>
-
-                                        {seenByMsgId === msg.id && isAdminOrTeacher && (
-                                            <div className="absolute right-0 top-5 bg-white shadow-lg rounded-lg p-3 z-20 border border-gray-100 min-w-[150px]" onClick={e => e.stopPropagation()}>
-                                                <h4 className="text-xs font-semibold text-gray-500 mb-2 uppercase">Seen by</h4>
-                                                <div className="space-y-1 max-h-32 overflow-y-auto">
-                                                    {(msg.seenBy || []).filter(id => id !== msg.senderId).map((userId, i) => (
-                                                        <div key={i} className="text-xs text-gray-700 py-0.5">{userId}</div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
+                            </React.Fragment>
                         );
                     })
                 )}
@@ -830,7 +957,7 @@ const ClassChat = ({ classNum, section, currentUser, directRoomId }) => {
                     style={{ top: contextMenu.y, left: Math.min(contextMenu.x, window.innerWidth - 160) }}
                     onClick={e => e.stopPropagation()}
                 >
-                    {messages.find(m => m.id === contextMenu.msgId)?.text && (
+                    {messages.find(m => m.id === contextMenu.msgId)?.text && canEditMessage(messages.find(m => m.id === contextMenu.msgId)) && (
                         <button
                             onClick={() => startEdit(messages.find(m => m.id === contextMenu.msgId))}
                             className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
@@ -867,23 +994,65 @@ const ClassChat = ({ classNum, section, currentUser, directRoomId }) => {
                     <div className="text-center py-3 text-gray-500 bg-gray-50 rounded-lg text-sm font-medium border border-gray-200">
                         The admin has restricted students from sending messages.
                     </div>
+                ) : isRecording ? (
+                    <div className="flex items-center justify-between bg-red-50 rounded-2xl px-3 sm:px-4 py-2 border border-red-100 mb-1">
+                        <div className="flex items-center gap-2 sm:gap-3">
+                            <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
+                            <span className="text-red-600 font-bold tabular-nums text-sm sm:text-base">{formatDuration(recordingTime)}</span>
+                            <span className="text-red-400 text-xs sm:text-sm font-medium">Recording Voice Note...</span>
+                        </div>
+                        <div className="flex items-center gap-1 sm:gap-2">
+                            <button
+                                type="button"
+                                onClick={cancelRecording}
+                                className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                                title="Cancel"
+                            >
+                                <Trash2 size={20} />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={stopRecording}
+                                className="p-2.5 sm:p-3 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg transition-all active:scale-90 flex items-center justify-center"
+                                title="Send Voice Note"
+                            >
+                                <Send size={20} />
+                            </button>
+                        </div>
+                    </div>
                 ) : (
                     <form onSubmit={handleSend} className="flex items-end gap-1 sm:gap-2">
-                        <button
-                            type="button"
-                            onClick={() => fileInputRef.current?.click()}
-                            className="p-2.5 sm:p-3 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors focus:outline-none flex-shrink-0"
-                            disabled={isSending}
-                            title="Attach File"
-                        >
-                            <Paperclip size={20} />
-                        </button>
+                        <div className="flex items-center gap-0.5 sm:gap-1">
+                            <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="p-2.5 sm:p-3 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors focus:outline-none flex-shrink-0"
+                                disabled={isSending}
+                                title="Attach File"
+                            >
+                                <Paperclip size={20} />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (fileInputRef.current) {
+                                        fileInputRef.current.accept = "image/*";
+                                        fileInputRef.current.click();
+                                    }
+                                }}
+                                className="p-2.5 sm:p-3 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors focus:outline-none flex-shrink-0"
+                                disabled={isSending}
+                                title="Upload Image"
+                            >
+                                <ImageIcon size={20} />
+                            </button>
+                        </div>
                         <input
                             type="file"
                             hidden
                             ref={fileInputRef}
                             onChange={handleFileSelect}
-                            accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+                            accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,audio/*"
                         />
 
                         <div className="flex-1 bg-gray-100 rounded-2xl relative">
@@ -891,7 +1060,7 @@ const ClassChat = ({ classNum, section, currentUser, directRoomId }) => {
                                 value={newMessage}
                                 onChange={(e) => setNewMessage(e.target.value)}
                                 placeholder="Type a message..."
-                                className="w-full bg-transparent resize-none outline-none py-2.5 sm:py-3 px-3 sm:px-4 max-h-32 text-gray-800 placeholder-gray-500 rounded-2xl text-[15px]"
+                                className="w-full bg-transparent resize-none outline-none py-2.5 sm:py-3 px-3 sm:px-4 max-h-32 text-gray-800 placeholder-gray-500 rounded-2xl text-base sm:text-[15px]"
                                 rows="1"
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter' && !e.shiftKey) {
@@ -906,6 +1075,7 @@ const ClassChat = ({ classNum, section, currentUser, directRoomId }) => {
                         <button
                             type="submit"
                             disabled={isSending || (!newMessage.trim() && !selectedFile)}
+                            hidden={!newMessage.trim() && !selectedFile}
                             className={`p-2.5 sm:p-3 rounded-full flex-shrink-0 transition-colors flex items-center justify-center ${isSending || (!newMessage.trim() && !selectedFile)
                                 ? 'bg-gray-200 text-gray-400'
                                 : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md'
@@ -913,6 +1083,18 @@ const ClassChat = ({ classNum, section, currentUser, directRoomId }) => {
                         >
                             {isSending ? <Loader size={20} className="animate-spin" /> : <Send size={20} />}
                         </button>
+
+                        {!newMessage.trim() && !selectedFile && (
+                            <button
+                                type="button"
+                                onClick={startRecording}
+                                className="p-2.5 sm:p-3 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors flex-shrink-0"
+                                disabled={isSending}
+                                title="Record Voice Note"
+                            >
+                                <Mic size={22} />
+                            </button>
+                        )}
                     </form>
                 )}
             </div>

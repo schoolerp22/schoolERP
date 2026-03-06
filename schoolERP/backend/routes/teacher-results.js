@@ -12,19 +12,28 @@ const getDB = (req) => req.app.locals.db;
 router.get("/:teacherId/marking-scheme/:class", async (req, res) => {
   try {
     const db = getDB(req);
+    const className = req.params.class;
     const academicYear = req.query.year || "2024-25";
     const section = req.query.section || "A";
-    const className = req.params.class;
+
+    // Normalize className and section for better matching
+    const classNameStr = String(className);
+    const sectionStr = String(section);
+
+    console.log(`Searching for marking scheme: Year=${academicYear}, Class=${classNameStr}, Section=${sectionStr}`);
 
     // Find active marking scheme that applies to this class/section
+    // Use regex for case-insensitive "All" matching
+    const allRegex = /^all$/i;
+
     const scheme = await db.collection("marking_schemes").findOne({
       academic_year: academicYear,
       status: "Active",
       $or: [
-        { "applicable_to.classes": className, "applicable_to.sections": section },
-        { "applicable_to.classes": className, "applicable_to.sections": "All" },
-        { "applicable_to.classes": "All", "applicable_to.sections": section },
-        { "applicable_to.classes": "All", "applicable_to.sections": "All" }
+        { "applicable_to.classes": classNameStr, "applicable_to.sections": sectionStr },
+        { "applicable_to.classes": classNameStr, "applicable_to.sections": allRegex },
+        { "applicable_to.classes": allRegex, "applicable_to.sections": sectionStr },
+        { "applicable_to.classes": allRegex, "applicable_to.sections": allRegex }
       ]
     });
 
@@ -77,15 +86,23 @@ router.post("/:teacherId/results/upload", async (req, res) => {
       });
     }
 
+    const academicYearActual = academic_year || "2024-25";
+    const classNameStr = String(className);
+    const sectionStr = String(section);
+
+    console.log(`Searching for marking scheme: Year=${academicYearActual}, Class=${classNameStr}, Section=${sectionStr}`);
+
     // Get active marking scheme for this class/section
+    const allRegex = /^all$/i;
+
     const scheme = await db.collection("marking_schemes").findOne({
-      academic_year: academic_year || "2024-25",
+      academic_year: academicYearActual,
       status: "Active",
       $or: [
-        { "applicable_to.classes": className, "applicable_to.sections": section },
-        { "applicable_to.classes": className, "applicable_to.sections": "All" },
-        { "applicable_to.classes": "All", "applicable_to.sections": section },
-        { "applicable_to.classes": "All", "applicable_to.sections": "All" }
+        { "applicable_to.classes": classNameStr, "applicable_to.sections": sectionStr },
+        { "applicable_to.classes": classNameStr, "applicable_to.sections": allRegex },
+        { "applicable_to.classes": allRegex, "applicable_to.sections": sectionStr },
+        { "applicable_to.classes": allRegex, "applicable_to.sections": allRegex }
       ]
     });
 
@@ -280,14 +297,18 @@ router.put("/:teacherId/results/:resultId", async (req, res) => {
     }
 
     // Get active marking scheme for recalculation
+    const classNameStr = String(result.class);
+    const sectionStr = String(result.section);
+    const allRegex = /^all$/i;
+
     const scheme = await db.collection("marking_schemes").findOne({
       academic_year: result.academic_year,
       status: "Active",
       $or: [
-        { "applicable_to.classes": result.class, "applicable_to.sections": result.section },
-        { "applicable_to.classes": result.class, "applicable_to.sections": "All" },
-        { "applicable_to.classes": "All", "applicable_to.sections": result.section },
-        { "applicable_to.classes": "All", "applicable_to.sections": "All" }
+        { "applicable_to.classes": classNameStr, "applicable_to.sections": sectionStr },
+        { "applicable_to.classes": classNameStr, "applicable_to.sections": allRegex },
+        { "applicable_to.classes": allRegex, "applicable_to.sections": sectionStr },
+        { "applicable_to.classes": allRegex, "applicable_to.sections": allRegex }
       ]
     });
 

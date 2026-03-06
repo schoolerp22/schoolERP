@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { useDispatch } from "react-redux";
+import { logout } from "../../../feature/auth/authSlice";
 import {
     LayoutDashboard,
     Users,
@@ -8,13 +10,17 @@ import {
     Settings,
     X,
     Menu,
-    FileSpreadsheet
+    FileSpreadsheet,
+    LogOut
 } from "lucide-react";
+import LogoutConfirmModal from "../../common/LogoutConfirmModal";
 import "./AccountantSidebar.css";
 
 const AccountantSidebar = () => {
     const [isOpen, setIsOpen] = useState(false);
+    const [showLogoutModal, setShowLogoutModal] = useState(false);
     const location = useLocation();
+    const dispatch = useDispatch();
 
     const toggleSidebar = () => setIsOpen(!isOpen);
 
@@ -56,12 +62,28 @@ const AccountantSidebar = () => {
                 </nav>
 
                 <div className="accountant-sidebar-footer">
+                    <button
+                        className="accountant-logout-btn"
+                        onClick={() => setShowLogoutModal(true)}
+                    >
+                        <LogOut size={20} />
+                        <span>Logout</span>
+                    </button>
                     <div className="accountant-user-info">
                         <span className="accountant-user-name">{user?.name || "Accountant"}</span>
                         <span className="accountant-user-role">Fee & Accounts Dept</span>
                     </div>
                 </div>
             </div>
+
+            <LogoutConfirmModal
+                isOpen={showLogoutModal}
+                onClose={() => setShowLogoutModal(false)}
+                onConfirm={() => {
+                    setShowLogoutModal(false);
+                    dispatch(logout());
+                }}
+            />
         </>
     );
 };

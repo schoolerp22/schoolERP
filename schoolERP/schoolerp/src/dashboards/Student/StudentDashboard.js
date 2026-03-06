@@ -165,7 +165,7 @@ const StudentDashboard = () => {
           </button>
         </header>
 
-        <main className={`flex-1 min-h-0 ${view === 'class-chat' ? 'overflow-hidden p-0' : 'overflow-y-auto custom-scrollbar bg-gray-50 pb-20 md:p-6 md:pb-6'}`}>
+        <main className={`flex-1 min-h-0 ${view === 'class-chat' ? 'overflow-hidden p-0 pb-20 md:pb-0' : 'overflow-y-auto custom-scrollbar bg-gray-50 pb-20 md:p-6 md:pb-6'}`}>
           {renderView()}
         </main>
       </div>

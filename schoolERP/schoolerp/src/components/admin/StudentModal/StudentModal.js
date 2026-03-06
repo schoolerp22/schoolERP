@@ -28,7 +28,12 @@ const StudentModal = ({ isOpen, onClose, onSubmit, student, mode = 'add' }) => {
             secondary_contact: ''
         },
         transport: {
-            bus_number: ''
+            bus_number: '',
+            used: false,
+            pickup_location: '',
+            drop_location: '',
+            distance: 0,
+            monthly_fee: 0
         },
         password: ''
     });
@@ -65,7 +70,12 @@ const StudentModal = ({ isOpen, onClose, onSubmit, student, mode = 'add' }) => {
                     secondary_contact: student.parent_record?.secondary_contact || ''
                 },
                 transport: {
-                    bus_number: student.transport?.bus_number || student.transport?.bus_no || ''
+                    bus_number: student.transport?.bus_number || student.transport?.bus_no || '',
+                    used: student.transport?.used || false,
+                    pickup_location: student.transport?.pickup_location || '',
+                    drop_location: student.transport?.drop_location || '',
+                    distance: student.transport?.distance || 0,
+                    monthly_fee: student.transport?.monthly_fee || 0
                 },
                 password: ''
             });
@@ -96,7 +106,12 @@ const StudentModal = ({ isOpen, onClose, onSubmit, student, mode = 'add' }) => {
                     secondary_contact: ''
                 },
                 transport: {
-                    bus_number: ''
+                    bus_number: '',
+                    used: false,
+                    pickup_location: '',
+                    drop_location: '',
+                    distance: 0,
+                    monthly_fee: 0
                 },
                 password: ''
             });
@@ -108,20 +123,21 @@ const StudentModal = ({ isOpen, onClose, onSubmit, student, mode = 'add' }) => {
     if (!isOpen) return null;
 
     const handleChange = (e, section = null) => {
-        const { name, value } = e.target;
+        const { name, value, type, checked } = e.target;
+        const val = type === 'checkbox' ? checked : value;
 
         if (section) {
             setFormData(prev => ({
                 ...prev,
                 [section]: {
                     ...prev[section],
-                    [name]: value
+                    [name]: val
                 }
             }));
         } else {
             setFormData(prev => ({
                 ...prev,
-                [name]: value
+                [name]: val
             }));
         }
     };
@@ -153,9 +169,9 @@ const StudentModal = ({ isOpen, onClose, onSubmit, student, mode = 'add' }) => {
     };
 
     const downloadCSVTemplate = () => {
-        const template = `admission_no,roll_no,class,section,house,first_name,last_name,gender,date_of_birth,address,phone,email,aadhar_no,pan_no,father_name,mother_name,primary_contact,secondary_contact,bus_number,password
-2026-001,1,10,A,Red,John,Doe,Male,2010-01-15,123 Main St,9876543210,john@example.com,123456789012,ABCDE1234F,Mr. Doe,Mrs. Doe,9876543210,9876543211,BUS-01,password123
-2026-002,2,10,A,Blue,Jane,Smith,Female,2010-02-20,456 Oak Ave,9876543211,jane@example.com,123456789013,ABCDE1235F,Mr. Smith,Mrs. Smith,9876543212,9876543213,BUS-02,password123`;
+        const template = `admission_no,roll_no,class,section,house,first_name,last_name,gender,date_of_birth,address,phone,email,aadhar_no,pan_no,father_name,mother_name,primary_contact,secondary_contact,bus_number,transport_used,pickup_location,drop_location,transport_distance,transport_fee,password
+2026-001,1,10,A,Red,John,Doe,Male,2010-01-15,123 Main St,9876543210,john@example.com,123456789012,ABCDE1234F,Mr. Doe,Mrs. Doe,9876543210,9876543211,BUS-01,true,Main Cross,School Gate,5,1500,password123
+2026-002,2,10,A,Blue,Jane,Smith,Female,2010-02-20,456 Oak Ave,9876543211,jane@example.com,123456789013,ABCDE1235F,Mr. Smith,Mrs. Smith,9876543212,9876543213,BUS-02,false,,,0,0,password123`;
 
         const blob = new Blob([template], { type: 'text/csv' });
         const url = window.URL.createObjectURL(blob);
@@ -530,22 +546,89 @@ const StudentModal = ({ isOpen, onClose, onSubmit, student, mode = 'add' }) => {
                                 </div>
                             </div>
 
-                            {/* Transport */}
                             <div>
                                 <h4 className="font-semibold text-gray-900 mb-3">Transport Details</h4>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            Bus Number
-                                        </label>
+                                <div className="space-y-4">
+                                    <label className="flex items-center gap-2 cursor-pointer">
                                         <input
-                                            type="text"
-                                            name="bus_number"
-                                            value={formData.transport.bus_number}
+                                            type="checkbox"
+                                            name="used"
+                                            checked={formData.transport.used}
                                             onChange={(e) => handleChange(e, 'transport')}
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                            className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
                                         />
-                                    </div>
+                                        <span className="text-sm font-medium text-gray-700">Uses School Transport</span>
+                                    </label>
+
+                                    {formData.transport.used && (
+                                        <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-100 animate-in fade-in slide-in-from-top-1">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                    Bus Number
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    name="bus_number"
+                                                    value={formData.transport.bus_number}
+                                                    onChange={(e) => handleChange(e, 'transport')}
+                                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                    placeholder="e.g. BUS-01"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                    Monthly Fee (₹)
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    name="monthly_fee"
+                                                    value={formData.transport.monthly_fee}
+                                                    onChange={(e) => handleChange(e, 'transport')}
+                                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                    placeholder="0"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                    Pickup Location
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    name="pickup_location"
+                                                    value={formData.transport.pickup_location}
+                                                    onChange={(e) => handleChange(e, 'transport')}
+                                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                    placeholder="Street / Landmark"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                    Drop Location
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    name="drop_location"
+                                                    value={formData.transport.drop_location}
+                                                    onChange={(e) => handleChange(e, 'transport')}
+                                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                    placeholder="Street / Landmark"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                    Distance (km)
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    name="distance"
+                                                    value={formData.transport.distance}
+                                                    onChange={(e) => handleChange(e, 'transport')}
+                                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                    placeholder="0"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>

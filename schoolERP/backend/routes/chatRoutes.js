@@ -2,6 +2,7 @@ import express from 'express';
 import upload from '../middleware/upload.js';
 import cloudinary from '../config/cloudinaryConfig.js';
 import fs from 'fs';
+import path from 'path';
 
 const router = express.Router();
 
@@ -15,15 +16,37 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 
         const roomId = req.body.roomId || 'general';
 
-        // Determine resource type based on file mimetype
+        // Sanitize filename: alphanumeric + underscores ONLY, max 50 chars
+        const extension = path.extname(req.file.originalname);
+        const nameWithoutExt = req.file.originalname.replace(/\.[^/.]+$/, "");
+        const sanitizedName = nameWithoutExt
+            .replace(/[^a-zA-Z0-9]/g, "_")
+            .substring(0, 50);
+
+        // Determine resource type
         const isImage = req.file.mimetype.startsWith('image/');
-        const resourceType = isImage ? 'image' : 'raw';
+        const isAudio = req.file.mimetype.startsWith('audio/') || req.file.mimetype.includes('webm');
+        const isPDF = req.file.mimetype === 'application/pdf';
+
+        // PDFs often fail with 401 when uploaded as 'image'/'auto' due to transformation restrictions.
+        // We upload them as 'raw' but MUST include the extension in public_id for many browsers to open it.
+        let resourceType = 'raw';
+        if (isImage) {
+            resourceType = 'image';
+        } else if (isAudio) {
+            resourceType = 'video';
+        }
+
+        // For 'raw' resources, the extension MUST be part of the public_id to be served correctly
+        const publicId = (resourceType === 'raw')
+            ? `${Date.now()}_${sanitizedName}${extension}`
+            : `${Date.now()}_${sanitizedName}`;
 
         // Upload to Cloudinary
         const result = await cloudinary.uploader.upload(req.file.path, {
             folder: `chat_files/${roomId}`,
             resource_type: resourceType,
-            public_id: `${Date.now()}_${req.file.originalname.replace(/\.[^/.]+$/, '')}`,
+            public_id: publicId,
         });
 
         // Clean up the local temp file

@@ -439,6 +439,132 @@ const CollectFeeView = () => {
                                         <span className="outstanding-amount">₹ {totalOutstanding.toLocaleString()}</span>
                                     </div>
 
+                                    {/* Additional Charges (Ad-hoc Fees) - MOVED TO TOP FOR VISIBILITY */}
+                                    <div className="adhoc-highlight-section" style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '24px' }}>
+                                        <h4 className="fee-section-title" style={{ marginTop: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#1e293b' }}>
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                Additional Charges (Fines, Events, etc.)
+                                                {(studentDues?.adhocFees || []).length > 0 &&
+                                                    <span style={{ fontSize: '0.7rem', background: '#3b82f6', color: '#fff', padding: '2px 6px', borderRadius: '10px' }}>
+                                                        {(studentDues.adhocFees || []).length}
+                                                    </span>
+                                                }
+                                            </span>
+                                            <button
+                                                className="add-charge-btn"
+                                                onClick={() => setShowAddCharge(!showAddCharge)}
+                                                style={{ fontSize: '0.75rem', padding: '4px 10px' }}
+                                            >
+                                                <Plus size={14} /> Add Charge
+                                            </button>
+                                        </h4>
+
+                                        {/* Add Charge Form */}
+                                        {showAddCharge && (
+                                            <div className="add-charge-form">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Fee name (e.g. Dance Class, Event Fee)"
+                                                    value={newCharge.name}
+                                                    onChange={(e) => setNewCharge({ ...newCharge, name: e.target.value })}
+                                                    className="charge-name-input"
+                                                />
+                                                <div className="charge-row">
+                                                    <div className="head-amount-input-wrap">
+                                                        <span className="rupee-prefix">₹</span>
+                                                        <input
+                                                            type="text"
+                                                            inputMode="numeric"
+                                                            className="head-amount-input"
+                                                            placeholder="Amount"
+                                                            value={newCharge.amount}
+                                                            onChange={(e) => setNewCharge({ ...newCharge, amount: e.target.value.replace(/[^0-9]/g, '') })}
+                                                        />
+                                                    </div>
+                                                    <select
+                                                        value={newCharge.category}
+                                                        onChange={(e) => setNewCharge({ ...newCharge, category: e.target.value })}
+                                                        className="charge-category-select"
+                                                    >
+                                                        <option value="Activity">Activity</option>
+                                                        <option value="Event">Event</option>
+                                                        <option value="Fine">Fine</option>
+                                                        <option value="Program">Program</option>
+                                                        <option value="Other">Other</option>
+                                                    </select>
+                                                    <select
+                                                        value={newCharge.frequency}
+                                                        onChange={(e) => setNewCharge({ ...newCharge, frequency: e.target.value })}
+                                                        className="charge-category-select"
+                                                    >
+                                                        <option value="Monthly">Monthly</option>
+                                                        <option value="One-time">One-time</option>
+                                                        <option value="Quarterly">Quarterly</option>
+                                                    </select>
+                                                    <button className="charge-save-btn" onClick={handleAddCharge}>Save</button>
+                                                    <button className="charge-cancel-btn" onClick={() => setShowAddCharge(false)}>✕</button>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* List of ad-hoc fees */}
+                                        {(studentDues?.adhocFees || []).length > 0 ? (
+                                            <div className="fee-months-list">
+                                                {(studentDues.adhocFees || []).map(fee => {
+                                                    const remaining = fee.amount - (fee.paidAmount || 0);
+                                                    const isSelected = selectedAdhocFees.includes(fee._id);
+                                                    const payAmt = adhocPayAmounts[fee._id] ?? String(remaining);
+                                                    const numPayAmt = Number(payAmt) || 0;
+                                                    const isPartial = numPayAmt > 0 && numPayAmt < remaining;
+                                                    return (
+                                                        <div key={fee._id} className={`fee-month-card ${isSelected ? 'selected' : ''} ${fee.isPaid ? 'paid-month' : ''}`}>
+                                                            <div className="fee-month-header" onClick={() => toggleAdhocFee(fee)}>
+                                                                <div className="fee-month-left">
+                                                                    {isSelected
+                                                                        ? <CheckCircle size={18} className="check-icon" />
+                                                                        : (fee.isPaid ? <CheckCircle size={18} className="check-icon-paid" /> : <div className="empty-circle"></div>)
+                                                                    }
+                                                                    <span className="month-label">{fee.name}</span>
+                                                                    <span className="adhoc-category-badge">{fee.category}</span>
+                                                                    {fee.isPaid && <span className="month-paid-badge">Paid</span>}
+                                                                </div>
+                                                                <div className="fee-month-right">
+                                                                    {isSelected ? (
+                                                                        <div className="head-amount-input-wrap" onClick={(e) => e.stopPropagation()}>
+                                                                            <span className="rupee-prefix">₹</span>
+                                                                            <input
+                                                                                type="text"
+                                                                                inputMode="numeric"
+                                                                                className={`head-amount-input ${isPartial ? 'partial' : ''}`}
+                                                                                value={payAmt}
+                                                                                onChange={(e) => updateAdhocPayAmount(fee._id, e.target.value, remaining)}
+                                                                                onFocus={(e) => e.target.select()}
+                                                                            />
+                                                                        </div>
+                                                                    ) : (
+                                                                        <span className="month-amount">₹{remaining.toLocaleString()}</span>
+                                                                    )}
+                                                                    {isPartial && <span className="partial-tag">Partial</span>}
+                                                                    {!fee.isPaid && fee.appliedTo === 'student' && (
+                                                                        <button
+                                                                            className="charge-delete-btn"
+                                                                            onClick={(e) => { e.stopPropagation(); handleDeleteCharge(fee._id); }}
+                                                                            title="Remove charge"
+                                                                        >
+                                                                            <Trash2 size={14} />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : (
+                                            !showAddCharge && <p style={{ color: '#94a3b8', fontSize: '0.85rem', margin: '8px 0 0' }}>No additional charges. Click "+ Add Charge" to add event fees, fines, etc.</p>
+                                        )}
+                                    </div>
+
                                     {/* Monthly Fees Section */}
                                     <h4 className="fee-section-title">Select Months to Pay</h4>
                                     <div className="fee-months-list">
@@ -570,125 +696,6 @@ const CollectFeeView = () => {
                                         </>
                                     )}
 
-                                    {/* Additional Charges (Ad-hoc Fees) */}
-                                    <>
-                                        <h4 className="fee-section-title mt-4" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            Additional Charges
-                                            <button
-                                                className="add-charge-btn"
-                                                onClick={() => setShowAddCharge(!showAddCharge)}
-                                            >
-                                                <Plus size={14} /> Add Charge
-                                            </button>
-                                        </h4>
-
-                                        {/* Add Charge Form */}
-                                        {showAddCharge && (
-                                            <div className="add-charge-form">
-                                                <input
-                                                    type="text"
-                                                    placeholder="Fee name (e.g. Dance Class, Event Fee)"
-                                                    value={newCharge.name}
-                                                    onChange={(e) => setNewCharge({ ...newCharge, name: e.target.value })}
-                                                    className="charge-name-input"
-                                                />
-                                                <div className="charge-row">
-                                                    <div className="head-amount-input-wrap">
-                                                        <span className="rupee-prefix">₹</span>
-                                                        <input
-                                                            type="text"
-                                                            inputMode="numeric"
-                                                            className="head-amount-input"
-                                                            placeholder="Amount"
-                                                            value={newCharge.amount}
-                                                            onChange={(e) => setNewCharge({ ...newCharge, amount: e.target.value.replace(/[^0-9]/g, '') })}
-                                                        />
-                                                    </div>
-                                                    <select
-                                                        value={newCharge.category}
-                                                        onChange={(e) => setNewCharge({ ...newCharge, category: e.target.value })}
-                                                        className="charge-category-select"
-                                                    >
-                                                        <option value="Activity">Activity</option>
-                                                        <option value="Event">Event</option>
-                                                        <option value="Fine">Fine</option>
-                                                        <option value="Program">Program</option>
-                                                        <option value="Other">Other</option>
-                                                    </select>
-                                                    <select
-                                                        value={newCharge.frequency}
-                                                        onChange={(e) => setNewCharge({ ...newCharge, frequency: e.target.value })}
-                                                        className="charge-category-select"
-                                                    >
-                                                        <option value="Monthly">Monthly</option>
-                                                        <option value="One-time">One-time</option>
-                                                        <option value="Quarterly">Quarterly</option>
-                                                    </select>
-                                                    <button className="charge-save-btn" onClick={handleAddCharge}>Save</button>
-                                                    <button className="charge-cancel-btn" onClick={() => setShowAddCharge(false)}>✕</button>
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {/* List of ad-hoc fees */}
-                                        {(studentDues?.adhocFees || []).length > 0 && (
-                                            <div className="fee-months-list">
-                                                {(studentDues.adhocFees || []).map(fee => {
-                                                    const remaining = fee.amount - (fee.paidAmount || 0);
-                                                    const isSelected = selectedAdhocFees.includes(fee._id);
-                                                    const payAmt = adhocPayAmounts[fee._id] ?? String(remaining);
-                                                    const numPayAmt = Number(payAmt) || 0;
-                                                    const isPartial = numPayAmt > 0 && numPayAmt < remaining;
-                                                    return (
-                                                        <div key={fee._id} className={`fee-month-card ${isSelected ? 'selected' : ''} ${fee.isPaid ? 'paid-month' : ''}`}>
-                                                            <div className="fee-month-header" onClick={() => toggleAdhocFee(fee)}>
-                                                                <div className="fee-month-left">
-                                                                    {isSelected
-                                                                        ? <CheckCircle size={18} className="check-icon" />
-                                                                        : (fee.isPaid ? <CheckCircle size={18} className="check-icon-paid" /> : <div className="empty-circle"></div>)
-                                                                    }
-                                                                    <span className="month-label">{fee.name}</span>
-                                                                    <span className="adhoc-category-badge">{fee.category}</span>
-                                                                    {fee.isPaid && <span className="month-paid-badge">Paid</span>}
-                                                                </div>
-                                                                <div className="fee-month-right">
-                                                                    {isSelected ? (
-                                                                        <div className="head-amount-input-wrap" onClick={(e) => e.stopPropagation()}>
-                                                                            <span className="rupee-prefix">₹</span>
-                                                                            <input
-                                                                                type="text"
-                                                                                inputMode="numeric"
-                                                                                className={`head-amount-input ${isPartial ? 'partial' : ''}`}
-                                                                                value={payAmt}
-                                                                                onChange={(e) => updateAdhocPayAmount(fee._id, e.target.value, remaining)}
-                                                                                onFocus={(e) => e.target.select()}
-                                                                            />
-                                                                        </div>
-                                                                    ) : (
-                                                                        <span className="month-amount">₹{remaining.toLocaleString()}</span>
-                                                                    )}
-                                                                    {isPartial && <span className="partial-tag">Partial</span>}
-                                                                    {!fee.isPaid && fee.appliedTo === 'student' && (
-                                                                        <button
-                                                                            className="charge-delete-btn"
-                                                                            onClick={(e) => { e.stopPropagation(); handleDeleteCharge(fee._id); }}
-                                                                            title="Remove charge"
-                                                                        >
-                                                                            <Trash2 size={14} />
-                                                                        </button>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
-
-                                        {(studentDues?.adhocFees || []).length === 0 && !showAddCharge && (
-                                            <p style={{ color: '#94a3b8', fontSize: '0.85rem', margin: '8px 0 16px' }}>No additional charges. Click "+ Add Charge" to add event fees, fines, etc.</p>
-                                        )}
-                                    </>
 
                                     {/* Late Fee & Discount */}
                                     <div className="fee-extras-grid mt-4">

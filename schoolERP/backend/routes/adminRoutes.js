@@ -617,7 +617,12 @@ router.post("/:adminId/students/bulk-upload", async (req, res) => {
                         secondary_contact: studentData.secondary_contact || ''
                     },
                     transport: {
-                        bus_number: studentData.bus_number || ''
+                        bus_number: studentData.bus_number || '',
+                        used: studentData.transport_used === 'true' || studentData.transport_used === '1' || !!studentData.bus_number,
+                        pickup_location: studentData.pickup_location || '',
+                        drop_location: studentData.drop_location || '',
+                        distance: Number(studentData.transport_distance) || 0,
+                        monthly_fee: Number(studentData.transport_fee) || 0
                     },
                     password: studentData.password ? await bcrypt.hash(studentData.password, 10) : await bcrypt.hash('password123', 10),
                     attendance: [],
@@ -1091,11 +1096,16 @@ router.post("/:adminId/marking-schemes", async (req, res) => {
             schemeData.grading_system = grading_system || templateData.grading_system;
         }
 
+        const academicYearStr = String(academic_year).trim();
+        const classes = (applicable_to.classes || ["All"]).map(c => String(c));
+        const sections = (applicable_to.sections || ["All"]).map(s => String(s));
+
         // Check if scheme already exists for same class/section/year
+        // Using a more flexible check that accounts for "All"
         const existing = await db.collection("marking_schemes").findOne({
-            academic_year: academic_year,
-            "applicable_to.classes": { $in: applicable_to.classes },
-            "applicable_to.sections": { $in: applicable_to.sections },
+            academic_year: academicYearStr,
+            "applicable_to.classes": { $in: classes },
+            "applicable_to.sections": { $in: sections },
             status: "Active"
         });
 
@@ -1107,10 +1117,10 @@ router.post("/:adminId/marking-schemes", async (req, res) => {
 
         const scheme = {
             scheme_name,
-            academic_year,
+            academic_year: academicYearStr,
             applicable_to: {
-                classes: applicable_to.classes || ["All"],
-                sections: applicable_to.sections || ["All"]
+                classes: classes,
+                sections: sections
             },
             components: schemeData.components,
             grading_system: schemeData.grading_system,

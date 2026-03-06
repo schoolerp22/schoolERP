@@ -343,6 +343,23 @@ router.get("/students/:admissionNo/dues", authorizeRoles("schoolAdmin", "account
                 });
             });
 
+            // Add transport fee if student uses transport
+            if (student.transport?.used) {
+                const transportHeadName = "Transport Fee";
+                // Only add if not already present in breakdown (prevents double billing if also in class structure)
+                if (!feeBreakdown.find(f => f.name === transportHeadName)) {
+                    const transportAmount = Number(student.transport.monthly_fee) || 0;
+                    const paidForTransport = partialPayments[monthKey]?.[transportHeadName] || 0;
+                    feeBreakdown.push({
+                        name: transportHeadName,
+                        amount: transportAmount,
+                        paidAmount: paidForTransport,
+                        remainingAmount: Math.max(0, transportAmount - paidForTransport),
+                        isTransport: true
+                    });
+                }
+            }
+
             // Add quarterly fee heads on quarter-start months (Apr, Jul, Oct, Jan)
             if (isQuarterStart) {
                 quarterlyFees.forEach(h => {

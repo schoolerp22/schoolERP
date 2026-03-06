@@ -307,6 +307,13 @@ const FeeManagementView = () => {
                                             <p className="text-sm text-gray-400 mt-1">Temporary or event-based fees applied directly to this class.</p>
                                         </div>
                                         <div className="p-6">
+                                            <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 mb-6 flex items-start gap-2">
+                                                <Info size={16} className="text-indigo-500 mt-0.5" />
+                                                <p className="text-xs text-indigo-700">
+                                                    <strong>Note:</strong> These charges apply to the <strong>entire class</strong> ({selectedClass}).
+                                                    To add a fine or extra charge to a <strong>single student</strong> only, please go to the <strong>Students</strong> section and click "View" on their profile.
+                                                </p>
+                                            </div>
                                             {classCharges.length > 0 ? (
                                                 <table className="w-full text-left border-collapse">
                                                     <thead>
@@ -529,9 +536,9 @@ const FeeManagementView = () => {
                                                 <td className="p-4 font-medium text-gray-800">{head.name}</td>
                                                 <td className="p-4">
                                                     <span className={`px-2 py-1 text-xs rounded-md ${head.frequency === 'Monthly' ? 'bg-blue-50 text-blue-700' :
-                                                            head.frequency === 'Quarterly' ? 'bg-teal-50 text-teal-700' :
-                                                                head.frequency === 'Yearly' ? 'bg-purple-50 text-purple-700' :
-                                                                    'bg-orange-50 text-orange-700'
+                                                        head.frequency === 'Quarterly' ? 'bg-teal-50 text-teal-700' :
+                                                            head.frequency === 'Yearly' ? 'bg-purple-50 text-purple-700' :
+                                                                'bg-orange-50 text-orange-700'
                                                         }`}>
                                                         {head.frequency}
                                                     </span>

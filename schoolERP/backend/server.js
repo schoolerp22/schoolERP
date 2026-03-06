@@ -169,7 +169,7 @@ const startServer = async () => {
     });
 
     app.use("/api/teacher", teacherRoutes);
-    app.use("/api/teacher/results", teacherResultsRoutes);
+    app.use("/api/teacher", teacherResultsRoutes);
 
     app.use("/api/student", studentRoutes);
     app.use("/api/student", studentResultsRoutes);

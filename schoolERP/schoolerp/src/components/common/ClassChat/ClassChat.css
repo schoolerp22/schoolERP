@@ -495,3 +495,56 @@
     padding-left: 6px;
     border-left: 1px solid rgba(59, 130, 246, 0.2);
 }
+
+/* Date Header sticky/badge style */
+.chat-date-header {
+    background: rgba(226, 232, 240, 0.8);
+    backdrop-filter: blur(4px);
+    color: #475569;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 6px 14px;
+    border-radius: 99px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    display: inline-block;
+}
+
+/* Voice Note & Recording Styles */
+.voice-progress::-webkit-slider-runnable-track {
+    height: 6px;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 3px;
+}
+
+.voice-progress::-webkit-slider-thumb {
+    height: 14px;
+    width: 14px;
+    background: #3b82f6;
+    border-radius: 50%;
+    cursor: pointer;
+    -webkit-appearance: none;
+    margin-top: -4px;
+}
+
+@keyframes pulse-recording {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: scale(1.2);
+        opacity: 0.7;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.animate-pulse {
+    animation: pulse-recording 1.5s infinite ease-in-out;
+}

@@ -15,120 +15,81 @@ const generateToken = (id, role, schoolId) => {
 
 // --- Helper to find user by ID/Email and Role ---
 const findUser = async (db, loginId, role) => {
-  // Normalize string (remove special hyphens etc if copied from docs)
   const id = String(loginId).trim();
   const isEmail = id.includes("@");
+  // Use case-insensitive regex for email
+  const idRegex = isEmail ? new RegExp(`^${id}$`, "i") : id;
+
+  console.log(`[AUTH] Searching for user: "${id}", Role: "${role || 'Auto-detect'}", isEmail: ${isEmail}`);
+
+  // Helper to check singular/plural collection names
+  const checkCol = async (singular, plural, query, roleLabel) => {
+    let user = await db.collection(plural).findOne(query);
+    if (user) {
+      console.log(`[AUTH] Found in plural collection: "${plural}"`);
+      return { user, role: roleLabel, collection: plural };
+    }
+    user = await db.collection(singular).findOne(query);
+    if (user) {
+      console.log(`[AUTH] Found in singular collection: "${singular}"`);
+      return { user, role: roleLabel, collection: singular };
+    }
+    return null;
+  };
 
   if (role === 'student') {
-    // Search by creds.id, admission_no, or email
-    const query = {
-      $or: [
-        { "creds.id": id },
-        { admission_no: id },
-        { "personal_details.email": id }
-      ]
-    };
-    const student = await db.collection("student").findOne(query);
-    if (student) return { user: student, role: "student", collection: "student" };
+    const query = { $or: [{ "creds.id": id }, { admission_no: id }, { "personal_details.email": idRegex }] };
+    return await checkCol("student", "students", query, "student");
   }
 
   if (role === 'teacher') {
-    // Search by teacher_id or email
-    const query = {
-      $or: [
-        { "creds.id": id },
-        { teacher_id: id },
-        { "personal_details.email": id }
-      ]
-    };
-    const teacher = await db.collection("teachers").findOne(query);
-    if (teacher) return { user: teacher, role: "teacher", collection: "teachers" };
+    const query = { $or: [{ "creds.id": id }, { teacher_id: id }, { "personal_details.email": idRegex }] };
+    return await checkCol("teacher", "teachers", query, "teacher");
   }
 
   if (role === 'schoolAdmin') {
-    // Search by admin_id/username or email 
-    const query = {
-      $or: [
-        { admin_id: id },
-        { email: id }
-      ]
-    };
-
-    let admin = await db.collection("schoolAdmin").findOne(query);
-    if (admin) return { user: admin, role: "schoolAdmin", collection: "schoolAdmin" };
-
-    // Also check generic 'admin' collection just in case
-    admin = await db.collection("admin").findOne(query);
-    if (admin) return { user: admin, role: "schoolAdmin", collection: "admin" };
+    const query = { $or: [{ admin_id: id }, { email: idRegex }] };
+    let found = await checkCol("schoolAdmin", "schoolAdmins", query, "schoolAdmin");
+    if (!found) found = await checkCol("admin", "admins", query, "schoolAdmin");
+    return found;
   }
 
   if (role === 'accountant') {
-    const query = {
-      $or: [
-        { accountant_id: id },
-        { email: id },
-        { admin_id: id } // Some accountants might be using an admin record with role "accountant"
-      ]
-    };
-
-    let acc = await db.collection("accountants").findOne(query);
-    if (acc) return { user: acc, role: "accountant", collection: "accountants" };
-
-    acc = await db.collection("admin").findOne({ ...query, role: "accountant" });
-    if (acc) return { user: acc, role: "accountant", collection: "admin" };
+    const query = { $or: [{ accountant_id: id }, { email: idRegex }, { admin_id: id }] };
+    let found = await checkCol("accountant", "accountants", query, "accountant");
+    if (!found) found = await db.collection("admin").findOne({ ...query, role: "accountant" });
+    if (found && !found.user) return { user: found, role: "accountant", collection: "admin" };
+    return found;
   }
 
   if (role === 'parent') {
-    const query = {
-      $or: [
-        { parent_id: id },
-        { mobile: id },
-        { email: id }
-      ]
-    };
-    const parent = await db.collection("parents").findOne(query);
-    if (parent) return { user: parent, role: "parent", collection: "parents" };
+    const query = { $or: [{ parent_id: id }, { mobile: id }, { email: idRegex }] };
+    return await checkCol("parent", "parents", query, "parent");
   }
 
-  // Fallback: If no role specified or not found in specific role, try global search (legacy behavior)
+  // Fallback: Global Search
   if (!role) {
-    let admin = await db.collection("schoolAdmin").findOne({ email: id });
-    if (admin) return { user: admin, role: admin.role || "schoolAdmin", collection: "schoolAdmin" };
+    console.log(`[AUTH] No role specified, checking all collections...`);
+    // Admins
+    let found = await db.collection("schoolAdmin").findOne({ email: idRegex });
+    if (found) return { user: found, role: found.role || "schoolAdmin", collection: "schoolAdmin" };
+    found = await db.collection("admin").findOne({ email: idRegex });
+    if (found) return { user: found, role: found.role || "schoolAdmin", collection: "admin" };
 
-    admin = await db.collection("admin").findOne({ email: id });
-    if (admin) return { user: admin, role: admin.role || "schoolAdmin", collection: "admin" };
+    // Teacher
+    found = await db.collection("teachers").findOne({ $or: [{ "personal_details.email": idRegex }, { teacher_id: id }, { "creds.id": id }] });
+    if (found) return { user: found, role: "teacher", collection: "teachers" };
 
-    // Teacher: search by email OR teacher_id OR creds.id
-    const teacher = await db.collection("teachers").findOne({
-      $or: [
-        { "personal_details.email": id },
-        { teacher_id: id },
-        { "creds.id": id }
-      ]
-    });
-    if (teacher) return { user: teacher, role: "teacher", collection: "teachers" };
+    // Student
+    found = await db.collection("student").findOne({ $or: [{ "personal_details.email": idRegex }, { admission_no: id }, { "creds.id": id }] });
+    if (found) return { user: found, role: "student", collection: "student" };
 
-    // Student: search by email OR admission_no OR creds.id
-    const student = await db.collection("student").findOne({
-      $or: [
-        { "personal_details.email": id },
-        { admission_no: id },
-        { "creds.id": id }
-      ]
-    });
-    if (student) return { user: student, role: "student", collection: "student" };
-
-    // Parent: search by email, mobile, or parent_id
-    const parent = await db.collection("parents").findOne({
-      $or: [
-        { email: id },
-        { mobile: id },
-        { parent_id: id }
-      ]
-    });
-    if (parent) return { user: parent, role: "parent", collection: "parents" };
+    // Parent
+    found = await db.collection("parents").findOne({ $or: [{ email: idRegex }, { mobile: id }, { parent_id: id }] });
+    if (found) return { user: found, role: "parent", collection: "parents" };
   }
 
+  console.log(`[AUTH] User not found for ID: "${id}"`);
   return null;
 };
 
@@ -139,19 +100,27 @@ export const validateUser = async (req, res) => {
 
     if (!id) return res.status(401).json({ valid: false, message: "Invalid token data" });
 
+    const objId = new ObjectId(id);
     let user = null;
+
     if (role === 'teacher') {
-      user = await db.collection("teachers").findOne({ _id: new ObjectId(id) });
+      user = await db.collection("teachers").findOne({ _id: objId });
+      if (!user) user = await db.collection("teacher").findOne({ _id: objId });
     } else if (role === 'student') {
-      user = await db.collection("student").findOne({ _id: new ObjectId(id) });
+      user = await db.collection("student").findOne({ _id: objId });
+      if (!user) user = await db.collection("students").findOne({ _id: objId });
     } else if (role === 'schoolAdmin') {
-      user = await db.collection("schoolAdmin").findOne({ _id: new ObjectId(id) });
-      if (!user) user = await db.collection("admin").findOne({ _id: new ObjectId(id) });
+      user = await db.collection("schoolAdmin").findOne({ _id: objId });
+      if (!user) user = await db.collection("schoolAdmins").findOne({ _id: objId });
+      if (!user) user = await db.collection("admin").findOne({ _id: objId });
+      if (!user) user = await db.collection("admins").findOne({ _id: objId });
     } else if (role === 'accountant') {
-      user = await db.collection("accountants").findOne({ _id: new ObjectId(id) });
-      if (!user) user = await db.collection("admin").findOne({ _id: new ObjectId(id) }); // Admin backwards compat
+      user = await db.collection("accountants").findOne({ _id: objId });
+      if (!user) user = await db.collection("accountant").findOne({ _id: objId });
+      if (!user) user = await db.collection("admin").findOne({ _id: objId, role: "accountant" });
     } else if (role === 'parent') {
-      user = await db.collection("parents").findOne({ _id: new ObjectId(id) });
+      user = await db.collection("parents").findOne({ _id: objId });
+      if (!user) user = await db.collection("parent").findOne({ _id: objId });
     }
 
     if (!user) return res.status(404).json({ message: "User not found" });
@@ -170,20 +139,31 @@ const findUserByEmail = async (db, email) => {
   const normalizedEmail = String(email).trim();
   const emailRegex = new RegExp(`^${normalizedEmail}$`, "i");
 
-  // Check Admin
-  let user = await db.collection("schoolAdmin").findOne({ email: emailRegex });
-  if (user) return { user, role: user.role || "schoolAdmin", collection: "schoolAdmin" };
+  // Helper to check singular/plural
+  const checkByEmail = async (singular, plural, query, roleLabel) => {
+    let user = await db.collection(plural).findOne(query);
+    if (user) return { user, role: roleLabel, collection: plural };
+    user = await db.collection(singular).findOne(query);
+    if (user) return { user, role: roleLabel, collection: singular };
+    return null;
+  };
 
-  user = await db.collection("admin").findOne({ email: emailRegex });
-  if (user) return { user, role: user.role || "schoolAdmin", collection: "admin" };
+  // Check Admin
+  let found = await checkByEmail("schoolAdmin", "schoolAdmins", { email: emailRegex }, "schoolAdmin");
+  if (!found) found = await checkByEmail("admin", "admins", { email: emailRegex }, "schoolAdmin");
+  if (found) return found;
 
   // Check Teacher
-  user = await db.collection("teachers").findOne({ "personal_details.email": emailRegex });
-  if (user) return { user, role: "teacher", collection: "teachers" };
+  found = await checkByEmail("teacher", "teachers", { "personal_details.email": emailRegex }, "teacher");
+  if (found) return found;
 
   // Check Student
-  user = await db.collection("student").findOne({ "personal_details.email": emailRegex });
-  if (user) return { user, role: "student", collection: "student" };
+  found = await checkByEmail("student", "students", { "personal_details.email": emailRegex }, "student");
+  if (found) return found;
+
+  // Check Parent
+  found = await checkByEmail("parent", "parents", { email: emailRegex }, "parent");
+  if (found) return found;
 
   return null;
 };
@@ -326,7 +306,7 @@ export const resetPassword = async (req, res) => {
     const found = await findUserByEmail(db, email);
 
     if (!found) return res.status(404).json({ message: "User not found" });
-    const { user, collection } = found;
+    const { user, collection, role } = found;
 
     // Verify OTP again just in case
     if (user.resetPasswordOTP !== otp || new Date() > new Date(user.resetPasswordExpires)) {

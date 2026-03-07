@@ -1,10 +1,10 @@
-.accountant-dashboard-layout {
+/* .accountant-dashboard-layout {
     display: flex;
     min-height: 100vh;
     background-color: #f8fafc;
-}
+} */
 
-.accountant-main-content {
+/* .accountant-main-content {
     flex: 1;
     margin-left: 260px;
     padding: 32px;
@@ -17,9 +17,8 @@
         margin-left: 0;
         padding: 20px;
         padding-top: 60px;
-        /* Space for mobile toggle */
     }
-}
+} */
 
 /* Common Accountant Card Styles */
 .accountant-card {

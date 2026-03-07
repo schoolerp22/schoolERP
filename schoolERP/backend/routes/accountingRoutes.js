@@ -284,8 +284,11 @@ router.get("/students/:admissionNo/dues", authorizeRoles("schoolAdmin", "account
                 // All receipts contribute to head-wise partial payments tracking
                 if (!partialPayments[m]) partialPayments[m] = {};
                 (r.feeBreakdown || []).forEach(fb => {
+                    const headNameIdentifier = fb.headName || fb.name;
                     const amt = Number(fb.amount || 0);
-                    partialPayments[m][fb.headName] = (partialPayments[m][fb.headName] || 0) + amt;
+                    if (headNameIdentifier) {
+                        partialPayments[m][headNameIdentifier] = (partialPayments[m][headNameIdentifier] || 0) + amt;
+                    }
                 });
             });
         });
@@ -391,7 +394,10 @@ router.get("/students/:admissionNo/dues", authorizeRoles("schoolAdmin", "account
         // Check which one-time fees have been paid
         const paidOneTimeHeads = new Set();
         paidReceipts.forEach(r => {
-            (r.feeBreakdown || []).forEach(fb => paidOneTimeHeads.add(fb.headName));
+            (r.feeBreakdown || []).forEach(fb => {
+                const headNameIdentifier = fb.headName || fb.name;
+                if (headNameIdentifier) paidOneTimeHeads.add(headNameIdentifier);
+            });
         });
         oneTimeHeads.forEach(h => {
             const isPaid = paidOneTimeHeads.has(h.name);
@@ -423,7 +429,12 @@ router.get("/students/:admissionNo/dues", authorizeRoles("schoolAdmin", "account
         // Separate by frequency
         const monthlyAdhoc = adhocFiltered.filter(f => f.frequency === "Monthly");
         const quarterlyAdhoc = adhocFiltered.filter(f => f.frequency === "Quarterly");
-        const onetimeAdhoc = adhocFiltered.filter(f => !f.frequency || f.frequency === "One-time");
+        const onetimeAdhoc = adhocFiltered
+            .filter(f => !f.frequency || f.frequency === "One-time")
+            .map(f => ({
+                ...f,
+                isPaid: paidOneTimeHeads.has(f.name)
+            }));
 
         // Merge monthly/quarterly ad-hoc fees into existing dues
         dues.forEach(due => {

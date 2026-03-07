@@ -47,10 +47,18 @@ const ReportsView = () => {
         }
     };
 
-    const totalCollected = receipts.reduce((sum, r) => sum + (r.totalAmount || 0), 0);
+    const totalCollected = receipts.reduce((sum, r) => sum + Number(r.amountPaid || r.totalAmount || 0), 0);
 
     const byPayMode = receipts.reduce((acc, r) => {
-        acc[r.paymentMode] = (acc[r.paymentMode] || 0) + (r.totalAmount || 0);
+        const amt = Number(r.amountPaid || r.totalAmount || 0);
+        acc[r.paymentMode] = (acc[r.paymentMode] || 0) + amt;
+        return acc;
+    }, {});
+
+    const byFeeHead = receipts.reduce((acc, r) => {
+        (r.feeBreakdown || []).forEach(fb => {
+            acc[fb.headName] = (acc[fb.headName] || 0) + Number(fb.amount || 0);
+        });
         return acc;
     }, {});
 
@@ -155,6 +163,24 @@ const ReportsView = () => {
                                 ))}
                             </div>
 
+                            {/* Head-wise Breakdown */}
+                            <div className="mb-6">
+                                <h4 className="text-sm font-semibold text-gray-700 mb-3 ml-1">Head-wise Collection Breakdown</h4>
+                                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                                    {Object.entries(byFeeHead).map(([head, amount]) => (
+                                        <div key={head} className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
+                                            <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-1 truncate">{head}</p>
+                                            <p className="text-lg font-bold text-gray-800">₹{amount.toLocaleString()}</p>
+                                        </div>
+                                    ))}
+                                    {Object.keys(byFeeHead).length === 0 && (
+                                        <div className="col-span-full py-4 text-center text-gray-400 text-xs bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                                            No head-wise breakdown data available for these receipts.
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
                             {receipts.length === 0 ? (
                                 <div className="text-center py-12 text-gray-400">
                                     <p className="text-lg">No receipts found for the selected filters.</p>
@@ -189,7 +215,7 @@ const ReportsView = () => {
                                                             {r.paymentMode}
                                                         </span>
                                                     </td>
-                                                    <td className="p-3 font-semibold text-gray-800 text-right">₹{(r.totalAmount || 0).toLocaleString()}</td>
+                                                    <td className="p-3 font-semibold text-gray-800 text-right">₹{(r.amountPaid || r.totalAmount || 0).toLocaleString()}</td>
                                                     <td className="p-3 text-gray-400 text-xs">
                                                         {r.paidAt ? new Date(r.paidAt).toLocaleDateString("en-IN") : "-"}
                                                     </td>

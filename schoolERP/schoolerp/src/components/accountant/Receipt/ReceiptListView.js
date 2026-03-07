@@ -374,7 +374,7 @@ const ReceiptListView = () => {
                                         {(viewingReceipt.feeBreakdown || []).map((item, idx) => (
                                             <tr key={idx}>
                                                 <td style={{ border: "1px solid #ccc", padding: "5px 8px", textAlign: "center" }}>{idx + 1}</td>
-                                                <td style={{ border: "1px solid #ccc", padding: "5px 8px" }}>{item.headName}</td>
+                                                <td style={{ border: "1px solid #ccc", padding: "5px 8px" }}>{item.headName || item.name}</td>
                                                 <td style={{ border: "1px solid #ccc", padding: "5px 8px", textAlign: "right" }}>{Number(item.amount || 0).toFixed(2)}</td>
                                             </tr>
                                         ))}

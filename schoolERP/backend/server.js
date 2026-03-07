@@ -13,6 +13,7 @@ import adminRoutes from './routes/adminRoutes.js';
 import chatRoutes from './routes/chatRoutes.js';
 import accountingRoutes from './routes/accountingRoutes.js';
 import schoolSettingsRoutes from './routes/schoolSettingsRoutes.js';
+import parentRoutes from './routes/parentRoutes.js';
 
 dotenv.config();
 
@@ -178,6 +179,7 @@ const startServer = async () => {
     app.use("/api/admin", adminRoutes);
     app.use("/api/chat", chatRoutes);
     app.use("/api/accounting", accountingRoutes);
+    app.use("/api/parent", parentRoutes);
 
 
 

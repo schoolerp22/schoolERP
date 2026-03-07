@@ -21,6 +21,7 @@ import MarkingSchemeManagement from '../../components/admin/MarkingSchemeManagem
 import AdminChatView from '../../components/admin/AdminChatView/AdminChatView';
 import FeeManagementView from '../../components/admin/FeeManagement/FeeManagementView';
 import SchoolSettingsView from '../../components/admin/SchoolSettings/SchoolSettingsView';
+import ParentManagementView from '../../components/admin/ParentManagement/ParentManagementView';
 
 // Redux actions
 import {
@@ -361,6 +362,8 @@ export default function SchoolAdminDashboard() {
         );
       case 'attendance-backlog':
         return <AttendanceBacklog />;
+      case 'parents':
+        return <ParentManagementView />;
       case 'marking-schemes':
         return <MarkingSchemeManagement />;
       case 'school-chat':

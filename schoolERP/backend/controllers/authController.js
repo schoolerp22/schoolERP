@@ -78,6 +78,18 @@ const findUser = async (db, loginId, role) => {
     if (acc) return { user: acc, role: "accountant", collection: "admin" };
   }
 
+  if (role === 'parent') {
+    const query = {
+      $or: [
+        { parent_id: id },
+        { mobile: id },
+        { email: id }
+      ]
+    };
+    const parent = await db.collection("parents").findOne(query);
+    if (parent) return { user: parent, role: "parent", collection: "parents" };
+  }
+
   // Fallback: If no role specified or not found in specific role, try global search (legacy behavior)
   if (!role) {
     let admin = await db.collection("schoolAdmin").findOne({ email: id });
@@ -105,6 +117,16 @@ const findUser = async (db, loginId, role) => {
       ]
     });
     if (student) return { user: student, role: "student", collection: "student" };
+
+    // Parent: search by email, mobile, or parent_id
+    const parent = await db.collection("parents").findOne({
+      $or: [
+        { email: id },
+        { mobile: id },
+        { parent_id: id }
+      ]
+    });
+    if (parent) return { user: parent, role: "parent", collection: "parents" };
   }
 
   return null;
@@ -128,6 +150,8 @@ export const validateUser = async (req, res) => {
     } else if (role === 'accountant') {
       user = await db.collection("accountants").findOne({ _id: new ObjectId(id) });
       if (!user) user = await db.collection("admin").findOne({ _id: new ObjectId(id) }); // Admin backwards compat
+    } else if (role === 'parent') {
+      user = await db.collection("parents").findOne({ _id: new ObjectId(id) });
     }
 
     if (!user) return res.status(404).json({ message: "User not found" });

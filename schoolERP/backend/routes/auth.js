@@ -10,80 +10,71 @@ const getDB = (req) => req.app.locals.db;
 router.post("/login", async (req, res) => {
   try {
     const db = getDB(req);
-    const { userId, password } = req.body;
+    const { userId, password, role: requestedRole } = req.body;
 
     if (!userId || !password)
       return res.status(400).json({ message: "User ID & Password required" });
 
-    // check in all possible collections
+    // check in all possible collections, starting with the requested role
     let user = null;
     let role = null;
     let uniqueId = null; // To store teacher_id, admission_no, or admin_id
 
-    user = await db.collection("teachers").findOne({ teacher_id: userId });
-    if (user) {
-      role = "teacher";
-      uniqueId = user.teacher_id; // "T-115"
+    // Helper function to check a specific collection
+    const checkCollection = async (collectionName, query, expectedRole, idField) => {
+      const foundUser = await db.collection(collectionName).findOne(query);
+      if (foundUser) {
+        user = foundUser;
+        role = foundUser.role || expectedRole;
+        uniqueId = foundUser[idField];
+        return true;
+      }
+      return false;
+    };
+
+    // If frontend requested a specific role, check that collection FIRST
+    if (requestedRole === "parent") {
+      await checkCollection("parents", { $or: [{ parent_id: userId }, { mobile: userId }, { email: userId }] }, "parent", "parent_id");
+    } else if (requestedRole === "student") {
+      await checkCollection("students", { admission_no: userId }, "student", "admission_no");
+    } else if (requestedRole === "teacher") {
+      await checkCollection("teachers", { teacher_id: userId }, "teacher", "teacher_id");
+    } else if (requestedRole === "accountant") {
+      await checkCollection("accountants", { accountant_id: userId }, "accountant", "accountant_id");
+    } else if (requestedRole === "schoolAdmin") {
+      await checkCollection("schoolAdmin", { admin_id: userId }, "schoolAdmin", "admin_id");
+      if (!user) await checkCollection("admin", { admin_id: userId }, "schoolAdmin", "admin_id");
+      if (!user) await checkCollection("admins", { admin_id: userId }, "schoolAdmin", "admin_id");
+    } else if (requestedRole === "superAdmin") {
+      await checkCollection("superAdmins", { super_admin_id: userId }, "superAdmin", "super_admin_id");
     }
 
-    if (!user) {
-      user = await db.collection("students").findOne({ admission_no: userId });
-      if (user) {
-        role = "student";
-        uniqueId = user.admission_no; // "2026-001"
-      }
-    }
-
-    if (!user) {
-      // Check schoolAdmin collection
-      user = await db.collection("schoolAdmin").findOne({ admin_id: userId });
-      if (user) {
-        role = user.role || "schoolAdmin";
-        uniqueId = user.admin_id;
-      }
-    }
-
-    if (!user) {
-      // Check admin collection
-      user = await db.collection("admin").findOne({ admin_id: userId });
-      if (user) {
-        role = user.role || "schoolAdmin";
-        uniqueId = user.admin_id;
-      }
-    }
-
-    if (!user) {
-      // Check admins collection (legacy/backwards compatibility)
-      user = await db.collection("admins").findOne({ admin_id: userId });
-      if (user) {
-        role = user.role || "schoolAdmin";
-        uniqueId = user.admin_id;
-      }
-    }
-
-    if (!user) {
-      // Check accountants collection
-      user = await db.collection("accountants").findOne({ accountant_id: userId });
-      if (user) {
-        role = "accountant";
-        uniqueId = user.accountant_id; // "ACC-001"
-      }
-    }
-
-    if (!user) {
-      // Check superAdmin collection
-      user = await db.collection("superAdmins").findOne({ super_admin_id: userId });
-      if (user) {
-        role = "superAdmin";
-        uniqueId = user.super_admin_id; // "SA-001"
-      }
-    }
+    // Fallback: If no user found yet, check all in order
+    if (!user) await checkCollection("teachers", { teacher_id: userId }, "teacher", "teacher_id");
+    if (!user) await checkCollection("students", { admission_no: userId }, "student", "admission_no");
+    if (!user) await checkCollection("schoolAdmin", { admin_id: userId }, "schoolAdmin", "admin_id");
+    if (!user) await checkCollection("admin", { admin_id: userId }, "schoolAdmin", "admin_id");
+    if (!user) await checkCollection("admins", { admin_id: userId }, "schoolAdmin", "admin_id");
+    if (!user) await checkCollection("accountants", { accountant_id: userId }, "accountant", "accountant_id");
+    if (!user) await checkCollection("superAdmins", { super_admin_id: userId }, "superAdmin", "super_admin_id");
+    if (!user) await checkCollection("parents", { $or: [{ parent_id: userId }, { mobile: userId }, { email: userId }] }, "parent", "parent_id");
 
     if (!user) return res.status(404).json({ message: "User not found" });
 
+    console.log("---- LOGIN ATTEMPT ----");
+    console.log("Requested Role:", requestedRole);
+    console.log("Found Role:", role);
+    console.log("User found?", !!user);
+    if (user) console.log("User ID:", user._id);
+
+    // Validate if the user's role matches the requested role from the frontend tab
+    if (requestedRole && role !== requestedRole) {
+      return res.status(401).json({ message: "Invalid credentials or role", debug: { requestedRole, actualRole: role, userId } });
+    }
+
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch)
-      return res.status(401).json({ message: "Invalid credentials" });
+      return res.status(401).json({ message: "Invalid credentials", debug: { isMatch, providedPass: password, dbPass: user.password } });
 
     // Create JWT with MongoDB _id, role, and schoolId
     // In this system, admin_no acts as the schoolId context for students/teachers

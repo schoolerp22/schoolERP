@@ -27,7 +27,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 // GET /api/admin/school-settings
-router.get("/", authorizeRoles("schoolAdmin", "accountant", "superAdmin"), async (req, res) => {
+router.get("/", authorizeRoles("schoolAdmin", "accountant", "superAdmin", "parent"), async (req, res) => {
     try {
         const db = getDB(req);
         const schoolId = req.user.schoolId || req.user.id;

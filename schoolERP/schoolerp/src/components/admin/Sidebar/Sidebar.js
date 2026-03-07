@@ -14,7 +14,8 @@ import {
     BookOpen,
     MessageSquare,
     IndianRupee,
-    Settings
+    Settings,
+    Heart
 } from 'lucide-react';
 import LogoutConfirmModal from '../../common/LogoutConfirmModal';
 
@@ -27,6 +28,7 @@ const Sidebar = ({ currentView, onViewChange, sidebarOpen, setSidebarOpen }) => 
         { id: 'teachers-attendance', icon: Calendar, label: 'Teacher Attendance' },
         { id: 'teacher-leaves', icon: FileText, label: 'Teacher Leaves' },
         { id: 'students', icon: Users, label: 'Students' },
+        { id: 'parents', icon: Heart, label: 'Parents' },
         { id: 'school-chat', icon: MessageSquare, label: 'School Communications' },
         { id: 'marking-schemes', icon: BookOpen, label: 'Marking Schemes' },
         { id: 'attendance-backlog', icon: Calendar, label: 'Student Backlog' },

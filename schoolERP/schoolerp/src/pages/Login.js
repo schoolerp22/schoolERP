@@ -26,6 +26,7 @@ export default function Login() {
     else if (location.pathname.includes("admin")) setRole("schoolAdmin");
     else if (location.pathname.includes("accountant")) setRole("accountant");
     else if (location.pathname.includes("student")) setRole("student");
+    else if (location.pathname.includes("parent")) setRole("parent");
   }, [location]);
 
   // Redirect if authenticated
@@ -36,6 +37,7 @@ export default function Login() {
       else if (userRole === "student") navigate("/dashboard/student");
       else if (userRole === "superAdmin") navigate("/dashboard/super-admin");
       else if (userRole === "accountant") navigate("/dashboard/accountant");
+      else if (userRole === "parent") navigate("/dashboard/parent");
     }
 
     if (error) {
@@ -71,6 +73,7 @@ export default function Login() {
       case "teacher": return "Teacher ID / Email";
       case "schoolAdmin": return "Admin ID / Email";
       case "accountant": return "Accountant ID / Email";
+      case "parent": return "Mobile Number / Email / Parent ID";
       default: return "User ID";
     }
   };
@@ -117,6 +120,13 @@ export default function Login() {
             onClick={() => setRole("accountant")}
           >
             <School size={18} /> Accountant
+          </button>
+          <button
+            className={`flex-1 min-w-[80px] py-2 text-center flex flex-col items-center justify-center gap-1 text-sm ${role === "parent" ? "border-b-2 border-indigo-600 text-indigo-600 font-semibold" : "text-gray-500 hover:text-gray-700"
+              }`}
+            onClick={() => setRole("parent")}
+          >
+            <User size={18} /> Parent
           </button>
         </div>
 

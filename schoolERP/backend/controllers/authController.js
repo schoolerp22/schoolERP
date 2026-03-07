@@ -28,11 +28,13 @@ const findUser = async (db, loginId, role) => {
 
   // Helper to check singular/plural collection names
   const checkCol = async (singular, plural, query, roleLabel) => {
+    console.log(`[AUTH] Querying ${plural}:`, JSON.stringify(query));
     let user = await db.collection(plural).findOne(query);
     if (user) {
       console.log(`[AUTH] Found in plural collection: "${plural}"`);
       return { user, role: roleLabel, collection: plural };
     }
+    console.log(`[AUTH] Querying ${singular}:`, JSON.stringify(query));
     user = await db.collection(singular).findOne(query);
     if (user) {
       console.log(`[AUTH] Found in singular collection: "${singular}"`);
@@ -220,7 +222,21 @@ export const loginUser = async (req, res) => {
 
     const found = await findUser(db, loginId, role);
     if (!found) {
-      return res.status(401).json({ message: "Invalid credentials or role" });
+      // Diagnostic check: what collections exist?
+      const collections = await db.listCollections().toArray();
+      const colNames = collections.map(c => c.name);
+
+      return res.status(401).json({
+        message: "Invalid credentials or role",
+        debug: {
+          searchId: loginId,
+          searchRole: role,
+          detectedAsNumeric: !isNaN(Number(loginId)),
+          availableCollections: colNames.filter(n => n.includes('parent') || n.includes('student') || n.includes('admin') || n.includes('teacher')),
+          timestamp: new Date().toISOString(),
+          version: "1.0.3-diagnostic"
+        }
+      });
     }
 
     const { user, role: foundRole } = found;

@@ -20,7 +20,11 @@ const findUser = async (db, loginId, role) => {
   // Use case-insensitive regex for email
   const idRegex = isEmail ? new RegExp(`^${id}$`, "i") : id;
 
-  console.log(`[AUTH] Searching for user: "${id}", Role: "${role || 'Auto-detect'}", isEmail: ${isEmail}`);
+  // Handle numeric IDs (like mobile numbers or admission numbers stored as Numbers)
+  const idAsNum = Number(id);
+  const isNumeric = !isNaN(idAsNum) && id !== "" && id.match(/^\d+$/);
+
+  console.log(`[AUTH] Searching for user: "${id}", Role: "${role || 'Auto-detect'}", isEmail: ${isEmail}, isNumeric: ${isNumeric}`);
 
   // Helper to check singular/plural collection names
   const checkCol = async (singular, plural, query, roleLabel) => {
@@ -38,54 +42,69 @@ const findUser = async (db, loginId, role) => {
   };
 
   if (role === 'student') {
-    const query = { $or: [{ "creds.id": id }, { admission_no: id }, { "personal_details.email": idRegex }] };
-    return await checkCol("student", "students", query, "student");
+    const $or = [{ "creds.id": id }, { admission_no: id }, { "personal_details.email": idRegex }];
+    if (isNumeric) $or.push({ admission_no: idAsNum });
+    return await checkCol("student", "students", { $or }, "student");
   }
 
   if (role === 'teacher') {
-    const query = { $or: [{ "creds.id": id }, { teacher_id: id }, { "personal_details.email": idRegex }] };
-    return await checkCol("teacher", "teachers", query, "teacher");
+    const $or = [{ "creds.id": id }, { teacher_id: id }, { "personal_details.email": idRegex }];
+    if (isNumeric) $or.push({ teacher_id: idAsNum });
+    return await checkCol("teacher", "teachers", { $or }, "teacher");
   }
 
   if (role === 'schoolAdmin') {
-    const query = { $or: [{ admin_id: id }, { email: idRegex }] };
-    let found = await checkCol("schoolAdmin", "schoolAdmins", query, "schoolAdmin");
-    if (!found) found = await checkCol("admin", "admins", query, "schoolAdmin");
+    const $or = [{ admin_id: id }, { email: idRegex }];
+    if (isNumeric) $or.push({ admin_id: idAsNum });
+    let found = await checkCol("schoolAdmin", "schoolAdmins", { $or }, "schoolAdmin");
+    if (!found) found = await checkCol("admin", "admins", { $or }, "schoolAdmin");
     return found;
   }
 
   if (role === 'accountant') {
-    const query = { $or: [{ accountant_id: id }, { email: idRegex }, { admin_id: id }] };
-    let found = await checkCol("accountant", "accountants", query, "accountant");
-    if (!found) found = await db.collection("admin").findOne({ ...query, role: "accountant" });
+    const $or = [{ accountant_id: id }, { email: idRegex }, { admin_id: id }];
+    if (isNumeric) {
+      $or.push({ accountant_id: idAsNum });
+      $or.push({ admin_id: idAsNum });
+    }
+    let found = await checkCol("accountant", "accountants", { $or }, "accountant");
+    if (!found) found = await db.collection("admin").findOne({ $or, role: "accountant" });
     if (found && !found.user) return { user: found, role: "accountant", collection: "admin" };
     return found;
   }
 
   if (role === 'parent') {
-    const query = { $or: [{ parent_id: id }, { mobile: id }, { email: idRegex }] };
-    return await checkCol("parent", "parents", query, "parent");
+    const $or = [{ parent_id: id }, { mobile: id }, { email: idRegex }];
+    if (isNumeric) {
+      $or.push({ mobile: idAsNum });
+      $or.push({ parent_id: idAsNum });
+    }
+    return await checkCol("parent", "parents", { $or }, "parent");
   }
 
   // Fallback: Global Search
   if (!role) {
     console.log(`[AUTH] No role specified, checking all collections...`);
+    // Build generic numeric query if applicable
+    const mobileQuery = isNumeric ? { $or: [{ mobile: id }, { mobile: idAsNum }] } : { mobile: id };
+    const admissionNoQuery = isNumeric ? { $or: [{ admission_no: id }, { admission_no: idAsNum }] } : { admission_no: id };
+
     // Admins
-    let found = await db.collection("schoolAdmin").findOne({ email: idRegex });
+    let found = await db.collection("schoolAdmin").findOne({ $or: [{ email: idRegex }, { admin_id: id }, ...(isNumeric ? [{ admin_id: idAsNum }] : [])] });
     if (found) return { user: found, role: found.role || "schoolAdmin", collection: "schoolAdmin" };
-    found = await db.collection("admin").findOne({ email: idRegex });
+    found = await db.collection("admin").findOne({ $or: [{ email: idRegex }, { admin_id: id }, ...(isNumeric ? [{ admin_id: idAsNum }] : [])] });
     if (found) return { user: found, role: found.role || "schoolAdmin", collection: "admin" };
 
     // Teacher
-    found = await db.collection("teachers").findOne({ $or: [{ "personal_details.email": idRegex }, { teacher_id: id }, { "creds.id": id }] });
+    found = await db.collection("teachers").findOne({ $or: [{ "personal_details.email": idRegex }, { teacher_id: id }, { "creds.id": id }, ...(isNumeric ? [{ teacher_id: idAsNum }] : [])] });
     if (found) return { user: found, role: "teacher", collection: "teachers" };
 
     // Student
-    found = await db.collection("student").findOne({ $or: [{ "personal_details.email": idRegex }, { admission_no: id }, { "creds.id": id }] });
+    found = await db.collection("student").findOne({ $or: [{ "personal_details.email": idRegex }, admissionNoQuery, { "creds.id": id }] });
     if (found) return { user: found, role: "student", collection: "student" };
 
     // Parent
-    found = await db.collection("parents").findOne({ $or: [{ email: idRegex }, { mobile: id }, { parent_id: id }] });
+    found = await db.collection("parents").findOne({ $or: [{ email: idRegex }, mobileQuery, { parent_id: id }, ...(isNumeric ? [{ parent_id: idAsNum }] : [])] });
     if (found) return { user: found, role: "parent", collection: "parents" };
   }
 

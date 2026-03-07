@@ -19,6 +19,7 @@ export default function ParentManagementView() {
     const fetchParents = useCallback(async () => {
         setLoading(true);
         try {
+            const headers = { Authorization: `Bearer ${token}` };
             const res = await API.get("/api/parent/list", { headers });
             setParents(res.data);
         } catch (e) {

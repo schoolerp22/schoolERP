@@ -4,13 +4,13 @@ import { fetchAttendance, fetchFees } from "../../feature/parent/parentSlice";
 
 export default function OverviewView() {
     const dispatch = useDispatch();
-    const { selectedChild, attendance, fees, loading } = useSelector(s => s.parent);
+    const { selectedChild, attendance, fees } = useSelector(s => s.parent);
 
     useEffect(() => {
         if (!selectedChild) return;
         if (!attendance[selectedChild.admission_no]) dispatch(fetchAttendance({ admissionNo: selectedChild.admission_no }));
         if (!fees[selectedChild.admission_no]) dispatch(fetchFees(selectedChild.admission_no));
-    }, [selectedChild, dispatch]);
+    }, [selectedChild, dispatch, attendance, fees]);
 
     if (!selectedChild) return null;
     const att = attendance[selectedChild.admission_no]?.summary || {};

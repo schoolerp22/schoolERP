@@ -84,6 +84,7 @@ const MARKING_SCHEME_TEMPLATES = {
                 { grade: "A*", label: "Outstanding", min: 90, max: 100 },
                 { grade: "A", label: "Excellent", min: 75, max: 89 },
                 { grade: "B", label: "Very Good", min: 56, max: 74 },
+                
                 { grade: "C", label: "Good", min: 35, max: 55 },
                 { grade: "D", label: "Needs Improvement", min: 0, max: 34 },
             ]

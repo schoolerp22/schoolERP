@@ -108,7 +108,7 @@ const StudentDashboard = () => {
   const renderView = () => {
     switch (view) {
       case "dashboard":
-        return <DashboardView profile={profile} homework={homework} exams={exams} />;
+        return <DashboardView profile={profile} homework={homework} exams={exams} results={results} analytics={analytics} />;
       case "homework":
         return <HomeworkView homework={homework} studentId={studentId} />;
       case "attendance":
@@ -138,7 +138,7 @@ const StudentDashboard = () => {
           />
         );
       default:
-        return <DashboardView profile={profile} homework={homework} exams={exams} />;
+        return <DashboardView profile={profile} homework={homework} exams={exams} results={results} analytics={analytics} />;
     }
   };
 

@@ -218,12 +218,30 @@ router.post("/:teacherId/results/upload", async (req, res) => {
           continue;
         }
 
+        // Flatten components to handle sub_components (e.g. MID_SA1_written)
+        const flatComponents = [];
+        scheme.components.forEach(comp => {
+          if (comp.sub_components && comp.sub_components.length > 0) {
+            comp.sub_components.forEach(subComp => {
+              flatComponents.push({
+                component_id: `${comp.component_id}_${subComp.name.toLowerCase().replace(/\\s+/g, '_')}`,
+                max_marks: subComp.max_marks || comp.max_marks
+              });
+            });
+          } else {
+            flatComponents.push({
+              component_id: comp.component_id,
+              max_marks: comp.max_marks
+            });
+          }
+        });
+
         let totalObtained = 0;
         let totalMax = 0;
         const marks = {};
 
         for (const [componentId, markData] of Object.entries(studentMark.marks)) {
-          const component = scheme.components.find(c => c.component_id === componentId);
+          const component = flatComponents.find(c => c.component_id === componentId);
           if (component) {
             marks[componentId] = {
               obtained: markData.obtained || 0,
@@ -615,6 +633,123 @@ router.get("/:teacherId/results/stats/class-comparison", async (req, res) => {
 
     res.json(classPerformance);
   } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   GET /api/teacher/:teacherId/results/history
+// @desc    Get summary of all result upload sessions for a teacher
+router.get("/:teacherId/results/history", async (req, res) => {
+  try {
+    const db = getDB(req);
+    const academicYear = req.query.year || currentAcademicYear();
+    const yearVariants = buildYearVariants(academicYear);
+
+    // Use aggregation to find unique upload sessions (by exam, subject, class, section)
+    const history = await db.collection("results").aggregate([
+      {
+        $match: {
+          "uploaded_by.teacher_id": req.params.teacherId,
+          academic_year: { $in: yearVariants }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            exam_id: "$exam_id",
+            subject: "$subject",
+            class: "$class",
+            section: "$section"
+          },
+          total_students: { $sum: 1 },
+          published_count: {
+            $sum: { $cond: ["$is_published", 1, 0] }
+          },
+          last_updated: { $max: "$last_updated" },
+          uploaded_at: { $min: "$uploaded_at" }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          exam_id: "$_id.exam_id",
+          subject: "$_id.subject",
+          class: "$_id.class",
+          section: "$_id.section",
+          total_students: 1,
+          published_count: 1,
+          last_updated: 1,
+          uploaded_at: 1
+        }
+      },
+      { $sort: { last_updated: -1 } }
+    ]).toArray();
+
+    // Enrich with exam names
+    const examIds = [...new Set(history.map(h => h.exam_id))];
+    const validObjectIds = examIds.filter(id => ObjectId.isValid(id)).map(id => new ObjectId(id));
+
+    const exams = await db.collection("exam_sessions").find({
+      $or: [
+        { _id: { $in: validObjectIds } },
+        { exam_code: { $in: examIds } }
+      ]
+    }).toArray();
+
+    const enrichedHistory = history.map(h => {
+      const exam = exams.find(e => e._id.toString() === h.exam_id || e.exam_code === h.exam_id);
+      return {
+        ...h,
+        exam_name: exam ? (exam.title || exam.name || exam.exam_code) : h.exam_id
+      };
+    });
+
+    res.json(enrichedHistory);
+  } catch (error) {
+    console.error("Error fetching results history:", error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   DELETE /api/teacher/:teacherId/results/session
+// @desc    Delete all results for a specific upload session
+router.delete("/:teacherId/results/session", async (req, res) => {
+  try {
+    const db = getDB(req);
+    const { exam_id, subject, class: className, section, academic_year } = req.query;
+
+    if (!exam_id || !subject || !className || !section) {
+      return res.status(400).json({ message: "Missing required query parameters" });
+    }
+
+    const academicYearActual = academic_year || currentAcademicYear();
+    const yearVariants = buildYearVariants(academicYearActual);
+
+    const query = {
+      exam_id,
+      subject,
+      class: className,
+      section,
+      academic_year: { $in: yearVariants },
+      "uploaded_by.teacher_id": req.params.teacherId
+    };
+
+    // Before deleting, get admission numbers to update analytics
+    const resultsToDelete = await db.collection("results").find(query).toArray();
+    const admissionNos = [...new Set(resultsToDelete.map(r => r.admission_no))];
+
+    const deleteResult = await db.collection("results").deleteMany(query);
+
+    if (deleteResult.deletedCount > 0 && admissionNos.length > 0) {
+      updateStudentAnalytics(db, admissionNos, query.academic_year);
+    }
+
+    res.json({
+      message: "Results session deleted successfully",
+      deletedCount: deleteResult.deletedCount
+    });
+  } catch (error) {
+    console.error("Error deleting results session:", error);
     res.status(500).json({ message: error.message });
   }
 });

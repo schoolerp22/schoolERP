@@ -374,6 +374,38 @@ export const getResultsStats = createAsyncThunk(
   }
 );
 
+// Get results history
+export const getResultsHistory = createAsyncThunk(
+  "teacher/getResultsHistory",
+  async ({ teacherId, year }, { rejectWithValue }) => {
+    const academicYear = year || currentAcademicYear();
+    try {
+      const response = await axios.get(
+        `${API_URL}/${teacherId}/results/history?year=${academicYear}`
+      );
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || error.message);
+    }
+  }
+);
+
+// Delete entire results session
+export const deleteResultSession = createAsyncThunk(
+  "teacher/deleteResultSession",
+  async ({ teacherId, params }, { rejectWithValue }) => {
+    try {
+      const query = new URLSearchParams(params).toString();
+      const response = await axios.delete(
+        `${API_URL}/${teacherId}/results/session?${query}`
+      );
+      return { ...response.data, params }; // Return params to help identify which one was deleted
+    } catch (error) {
+      return rejectWithValue(error.response?.data || error.message);
+    }
+  }
+);
+
 // Get class performance comparison
 export const getClassComparison = createAsyncThunk(
   "teacher/getClassComparison",
@@ -557,6 +589,7 @@ const initialState = {
   classResults: [],
   resultsStats: null,
   classComparison: [],
+  resultsHistory: [],
   timetable: null,
 
   // my leaves state
@@ -644,6 +677,7 @@ const teacherSlice = createSlice({
       state.classResults = [];
       state.resultsStats = null;
       state.classComparison = [];
+      state.resultsHistory = [];
 
       state.selfAttendanceHistory = [];
       state.selfAttendanceBacklogs = [];
@@ -1021,6 +1055,41 @@ const teacherSlice = createSlice({
       .addCase(getClassComparison.fulfilled, (state, action) => {
         state.classComparison = action.payload;
       })
+
+      // Results History
+      .addCase(getResultsHistory.pending, (state) => {
+        state.loadings.results = true;
+      })
+      .addCase(getResultsHistory.fulfilled, (state, action) => {
+        state.loadings.results = false;
+        state.resultsHistory = action.payload;
+      })
+      .addCase(getResultsHistory.rejected, (state, action) => {
+        state.loadings.results = false;
+        state.error = action.payload;
+      })
+
+      // Delete Result Session
+      .addCase(deleteResultSession.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(deleteResultSession.fulfilled, (state, action) => {
+        state.loading = false;
+        state.success = true;
+        // Optimization: locally filter history
+        const { params } = action.payload;
+        state.resultsHistory = state.resultsHistory.filter(h =>
+          !(h.exam_id === params.exam_id &&
+            h.subject === params.subject &&
+            h.class === params.class &&
+            h.section === params.section)
+        );
+      })
+      .addCase(deleteResultSession.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
       // Save Timetable
       .addCase(saveTimetable.pending, (state) => {
         state.loading = true;

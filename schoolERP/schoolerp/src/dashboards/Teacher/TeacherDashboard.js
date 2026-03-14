@@ -12,8 +12,8 @@ import HomeworkView from '../../components/teacher/HomeworkView/HomeworkView';
 import AnnouncementsView from '../../components/teacher/AnnouncementsView/AnnouncementsView';
 import LeaveApproval from '../../components/teacher/LeaveApproval/LeaveApproval';
 import TimetableManagement from '../../components/teacher/TimetableManagement/TimetableManagement';
-//Import Results Components
 import ResultsUpload from '../../components/teacher/ResultsUpload/ResultsUpload';
+import ResultsHistoryView from '../../components/teacher/ResultsHistoryView/ResultsHistoryView';
 import TeacherPerformanceDashboard from '../../components/teacher/TeacherPerformanceDashboard/TeacherPerformanceDashboard';
 import MyAttendanceView from '../../components/teacher/MyAttendanceView/MyAttendanceView';
 import MyLeavesView from '../../components/teacher/MyLeavesView/MyLeavesView';
@@ -51,6 +51,7 @@ const TeacherDashboard = () => {
   const [currentView, setCurrentView] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedClass, setSelectedClass] = useState('');
+  const [editSession, setEditSession] = useState(null);
 
   const teacherId = user?.teacher_id;
 
@@ -163,6 +164,19 @@ const TeacherDashboard = () => {
             teacherId={teacherId}
             profile={profile}
             selectedClass={selectedClass}
+            editSession={editSession}
+            clearEdit={() => setEditSession(null)}
+          />
+        );
+      case 'results-manage':
+        return (
+          <ResultsHistoryView 
+            teacherId={teacherId}
+            profile={profile}
+            onEdit={(session) => {
+              setEditSession(session);
+              setCurrentView('results-upload');
+            }}
           />
         );
       case 'results-performance':

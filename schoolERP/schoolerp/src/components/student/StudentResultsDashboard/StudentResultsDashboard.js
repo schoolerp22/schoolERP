@@ -357,8 +357,8 @@ export default function StudentResultsDashboard({ admissionNo, analytics, result
                     <tr>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Exam</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Subject</th>
-                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600">Marks Obtained</th>
-                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600">Maximum Marks</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600">Breakdown (Obtained/Max)</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600">Total Marks</th>
                       <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600">Percentage</th>
                       <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600">Grade</th>
                     </tr>
@@ -390,8 +390,25 @@ export default function StudentResultsDashboard({ admissionNo, analytics, result
                         <tr key={result._id || idx} className="hover:bg-gray-50">
                           <td className="px-4 py-3 text-sm text-gray-800">{examName}</td>
                           <td className="px-4 py-3 text-sm text-gray-800 font-medium">{result.subject}</td>
-                          <td className="px-4 py-3 text-sm text-center text-blue-600 font-bold">{result.total_obtained || 0}</td>
-                          <td className="px-4 py-3 text-sm text-center text-gray-800 font-medium">{result.total_max || 0}</td>
+                          <td className="px-4 py-3 text-sm text-center">
+                            <div className="flex flex-wrap justify-center gap-2">
+                              {result.marks && Object.entries(result.marks).map(([compId, data]) => {
+                                const label = compId.split('_').pop().replace(/([A-Z])/g, ' $1').trim();
+                                return (
+                                  <div key={compId} className="bg-gray-50 border border-gray-100 rounded px-2 py-1 text-[10px] flex flex-col items-center">
+                                    <span className="text-gray-400 uppercase font-bold">{label}</span>
+                                    <span className="text-gray-700 font-bold">{data.obtained} / {data.max}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-center">
+                            <div className="flex flex-col items-center">
+                              <span className="text-blue-600 font-bold">{result.total_obtained || 0}</span>
+                              <span className="text-gray-400 text-[10px]">out of {result.total_max || 0}</span>
+                            </div>
+                          </td>
                           <td className="px-4 py-3 text-sm text-center text-gray-600">{result.percentage || 0}%</td>
                           <td className="px-4 py-3 text-center">
                             <span className={`px-2 py-1 rounded text-xs font-semibold ${getGradeColor(result.grade || 'N/A')}`}>

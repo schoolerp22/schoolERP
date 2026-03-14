@@ -10,7 +10,7 @@ import {
   clearSuccess
 } from "../../../feature/teachers/teacherSlice";
 
-export default function ResultsUpload({ teacherId, profile, selectedClass: initialSelectedClass }) {
+export default function ResultsUpload({ teacherId, profile, selectedClass: initialSelectedClass, editSession, clearEdit }) {
   const dispatch = useDispatch();
 
   // Split class-section from prop
@@ -38,6 +38,18 @@ export default function ResultsUpload({ teacherId, profile, selectedClass: initi
   const [showSuccessMsg, setShowSuccessMsg] = useState(false);
   const [showErrorMsg, setShowErrorMsg] = useState(false);
 
+  // Handle Edit Redirection from History
+  useEffect(() => {
+    if (editSession) {
+      setSelectedClass(editSession.class);
+      setSelectedSection(editSession.section);
+      setSelectedSessionId(editSession.exam_id);
+      setSelectedSubject(editSession.subject);
+      // Optional: Clear the edit session after setting states if needed, 
+      // but keeping it helps know we are in "Edit Mode"
+    }
+  }, [editSession]);
+
   // ===== STATIC DATA =====
   const subjects = profile?.subjects || [
     "Mathematics", "Physics", "Chemistry", "Biology",
@@ -45,67 +57,68 @@ export default function ResultsUpload({ teacherId, profile, selectedClass: initi
   ];
 
   // Map marking scheme components dynamically based on chosen Exam Session
-  const mapComponents = (scheme, sessionId) => {
-    const session = examSessions.find(e => e._id === sessionId);
-    const examType = session?.exam_type;
+  const components = React.useMemo(() => {
+    const mapComponents = (scheme, sessionId) => {
+      const session = examSessions.find(e => e._id === sessionId);
+      const examType = session?.exam_type;
 
-    if (!scheme?.components || scheme.components.length === 0) {
-      return [
-        { component_id: "theory", component_name: "Theory", max_marks: 80 },
-        { component_id: "internal", component_name: "Internal", max_marks: 20 }
-      ];
-    }
-
-    let activeComponents = scheme.components;
-
-    // Filter components to ONLY show those relevant to the selected Exam (e.g., FA1, Unit Test)
-    if (examType) {
-      // 1. Exact match by exam_code (e.g. CBSE Middle 'FA1')
-      let matched = scheme.components.filter(c => c.exam_code === examType);
-
-      // 2. Fallback to match by component type (e.g. 'UNIT_TEST' maps to type 'unit_test')
-      if (matched.length === 0) {
-        matched = scheme.components.filter(c => c.type === examType.toLowerCase() || c.type === examType);
+      if (!scheme?.components || scheme.components.length === 0) {
+        return [
+          { component_id: "theory", component_name: "Theory", max_marks: 80 },
+          { component_id: "internal", component_name: "Internal", max_marks: 20 }
+        ];
       }
 
-      // 3. Fallback for generic exams (e.g. Monday Test) not mapped in the grand scheme
-      if (matched.length === 0 && session) {
-        return [{
-          component_id: `exam_${sessionId}`,
-          component_name: `${session.name} Marks`,
-          max_marks: 100 // Default max
-        }];
+      let activeComponents = scheme.components;
+
+      // Filter components to ONLY show those relevant to the selected Exam (e.g., FA1, Unit Test)
+      if (examType) {
+        // 1. Exact match by exam_code (e.g. CBSE Middle 'FA1')
+        let matched = scheme.components.filter(c => c.exam_code === examType);
+
+        // 2. Fallback to match by component type (e.g. 'UNIT_TEST' maps to type 'unit_test')
+        if (matched.length === 0) {
+          matched = scheme.components.filter(c => c.type === examType.toLowerCase() || c.type === examType);
+        }
+
+        // 3. Fallback for generic exams (e.g. Monday Test) not mapped in the grand scheme
+        if (matched.length === 0 && session) {
+          return [{
+            component_id: `exam_${sessionId}`,
+            component_name: `${session.name} Marks`,
+            max_marks: 100 // Default max
+          }];
+        } else {
+          activeComponents = matched;
+        }
       } else {
-        activeComponents = matched;
+        // Default to empty array if no session is selected yet
+        return [];
       }
-    } else {
-      // Default to empty array if no session is selected yet
-      return [];
-    }
 
-    const mapped = [];
-    activeComponents.forEach((comp) => {
-      // Break down sub components if any (e.g. Written + Oral/Practical)
-      if (comp.sub_components && comp.sub_components.length > 0) {
-        comp.sub_components.forEach((subComp) => {
-          mapped.push({
-            component_id: `${comp.component_id}_${subComp.name.toLowerCase().replace(/\\s+/g, '_')}`,
-            component_name: `${comp.name} - ${subComp.name}`,
-            max_marks: subComp.max_marks || comp.max_marks
+      const mapped = [];
+      activeComponents.forEach((comp) => {
+        // Break down sub components if any (e.g. Written + Oral/Practical)
+        if (comp.sub_components && comp.sub_components.length > 0) {
+          comp.sub_components.forEach((subComp) => {
+            mapped.push({
+              component_id: `${comp.component_id}_${subComp.name.toLowerCase().replace(/\\s+/g, '_')}`,
+              component_name: `${comp.name} - ${subComp.name}`,
+              max_marks: subComp.max_marks || comp.max_marks
+            });
           });
-        });
-      } else {
-        mapped.push({
-          component_id: comp.component_id,
-          component_name: comp.name,
-          max_marks: comp.max_marks
-        });
-      }
-    });
-    return mapped;
-  };
-
-  const components = mapComponents(markingScheme, selectedSessionId);
+        } else {
+          mapped.push({
+            component_id: comp.component_id,
+            component_name: comp.name,
+            max_marks: comp.max_marks
+          });
+        }
+      });
+      return mapped;
+    };
+    return mapComponents(markingScheme, selectedSessionId);
+  }, [markingScheme, selectedSessionId, examSessions]);
 
   // ===== FETCH EXAM SESSIONS =====
   useEffect(() => {
@@ -443,9 +456,21 @@ export default function ResultsUpload({ teacherId, profile, selectedClass: initi
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Upload Marks</h1>
-              <p className="text-gray-500 mt-1">Select class, exam session, and upload scores or Excel sheet.</p>
+              <h1 className="text-2xl font-bold text-gray-900">
+                {editSession ? `Editing Results: ${editSession.exam_name} - ${editSession.subject}` : 'Upload Marks'}
+              </h1>
+              <p className="text-gray-500 mt-1">
+                {editSession ? 'Modify student scores and re-publish as needed.' : 'Select class, exam session, and upload scores or Excel sheet.'}
+              </p>
             </div>
+            {editSession && (
+              <button 
+                onClick={clearEdit}
+                className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-sm font-bold transition-colors"
+              >
+                <X size={16} /> Cancel Editing
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

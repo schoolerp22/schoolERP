@@ -30,6 +30,11 @@ const Sidebar = ({ profile, currentView, onViewChange, sidebarOpen, onToggleSide
       badgeColor: 'bg-green-500'
     },
     {
+      id: 'results-manage',
+      icon: Clock,
+      label: 'Manage Results'
+    },
+    {
       id: 'results-performance',
       icon: BarChart3,
       label: 'Performance Analytics',

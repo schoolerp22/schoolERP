@@ -1046,7 +1046,19 @@ router.post("/:adminId/results/fix-missing-fields", async (req, res) => {
 
 // ==================== MARKING SCHEMES MANAGEMENT ====================
 
-import MARKING_SCHEME_TEMPLATES from '../utils/markingSchemeTemplates.js';
+import MARKING_SCHEME_TEMPLATES, { CBSE_EXAM_TYPES } from '../utils/markingSchemeTemplates.js';
+
+/**
+ * @route   GET /api/admin/exam-types
+ * @desc    Get all CBSE exam types with metadata (code, type, term, weight)
+ */
+router.get("/exam-types", async (req, res) => {
+    try {
+        res.json(CBSE_EXAM_TYPES);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
 
 /**
  * @route   GET /api/admin/:adminId/marking-schemes/templates
@@ -1059,6 +1071,8 @@ router.get("/:adminId/marking-schemes/templates", async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 });
+
+
 
 /**
  * @route   POST /api/admin/:adminId/marking-schemes

@@ -22,7 +22,7 @@ const getRazorpay = () => {
 
 // ─── All routes require auth ───
 router.use(verifyToken);
-router.use(authorizeRoles("parent", "schoolAdmin", "superAdmin"));
+router.use(authorizeRoles("parent", "student", "schoolAdmin", "superAdmin"));
 
 // ==========================================
 // 1. PARENT PROFILE & CHILDREN

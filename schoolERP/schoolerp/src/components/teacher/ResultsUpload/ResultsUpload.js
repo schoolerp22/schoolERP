@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Save, Eye, Download, Upload, AlertCircle, CheckCircle, X, FileUp } from "lucide-react";
+import { Download, AlertCircle, CheckCircle, X, FileUp } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 
 import {
@@ -29,7 +29,8 @@ export default function ResultsUpload({ teacherId, profile, selectedClass: initi
   const loading = formLoading || loadings?.markingScheme || loadings?.students;
 
   // ===== LOCAL STATE =====
-  const [selectedExam, setSelectedExam] = useState("");
+  const [examSessions, setExamSessions] = useState([]);
+  const [selectedSessionId, setSelectedSessionId] = useState("");
   const [selectedSubject, setSelectedSubject] = useState("");
   const [selectedClass, setSelectedClass] = useState(initialClass || "10");
   const [selectedSection, setSelectedSection] = useState(initialSection || "A");
@@ -37,50 +38,65 @@ export default function ResultsUpload({ teacherId, profile, selectedClass: initi
   const [showSuccessMsg, setShowSuccessMsg] = useState(false);
   const [showErrorMsg, setShowErrorMsg] = useState(false);
 
-  // ===== STATIC =====
-  const exams = [
-    { id: "MID_TERM_1", name: "Mid Term 1" },
-    { id: "TERM_1", name: "1st Term Final" },
-    { id: "TERM_2", name: "2nd Term Final" }
-  ];
-
+  // ===== STATIC DATA =====
   const subjects = profile?.subjects || [
-    "Mathematics",
-    "Physics",
-    "Chemistry",
-    "Biology",
-    "English",
-    "Hindi",
-    "Computer Science"
+    "Mathematics", "Physics", "Chemistry", "Biology",
+    "English", "Hindi", "Computer Science", "Social Science"
   ];
 
-  // Default components if marking scheme not available
-  const defaultComponents = [
-    { component_id: "theory", component_name: "Theory", max_marks: 70 },
-    { component_id: "practical", component_name: "Practical", max_marks: 30 }
-  ];
+  // Map marking scheme components dynamically based on chosen Exam Session
+  const mapComponents = (scheme, sessionId) => {
+    const session = examSessions.find(e => e._id === sessionId);
+    const examType = session?.exam_type;
 
-  // Map new marking scheme structure to old component format for UI compatibility
-  const mapComponents = (scheme) => {
     if (!scheme?.components || scheme.components.length === 0) {
-      return defaultComponents;
+      return [
+        { component_id: "theory", component_name: "Theory", max_marks: 80 },
+        { component_id: "internal", component_name: "Internal", max_marks: 20 }
+      ];
+    }
+
+    let activeComponents = scheme.components;
+
+    // Filter components to ONLY show those relevant to the selected Exam (e.g., FA1, Unit Test)
+    if (examType) {
+      // 1. Exact match by exam_code (e.g. CBSE Middle 'FA1')
+      let matched = scheme.components.filter(c => c.exam_code === examType);
+
+      // 2. Fallback to match by component type (e.g. 'UNIT_TEST' maps to type 'unit_test')
+      if (matched.length === 0) {
+        matched = scheme.components.filter(c => c.type === examType.toLowerCase() || c.type === examType);
+      }
+
+      // 3. Fallback for generic exams (e.g. Monday Test) not mapped in the grand scheme
+      if (matched.length === 0 && session) {
+        return [{
+          component_id: `exam_${sessionId}`,
+          component_name: `${session.name} Marks`,
+          max_marks: 100 // Default max
+        }];
+      } else {
+        activeComponents = matched;
+      }
+    } else {
+      // Default to empty array if no session is selected yet
+      return [];
     }
 
     const mapped = [];
-    scheme.components.forEach((comp) => {
+    activeComponents.forEach((comp) => {
+      // Break down sub components if any (e.g. Written + Oral/Practical)
       if (comp.sub_components && comp.sub_components.length > 0) {
-        // If component has sub-components, flatten them
         comp.sub_components.forEach((subComp) => {
           mapped.push({
-            component_id: `${comp.name.toLowerCase().replace(/\s+/g, '_')}_${subComp.name.toLowerCase().replace(/\s+/g, '_')}`,
+            component_id: `${comp.component_id}_${subComp.name.toLowerCase().replace(/\\s+/g, '_')}`,
             component_name: `${comp.name} - ${subComp.name}`,
-            max_marks: subComp.max_marks
+            max_marks: subComp.max_marks || comp.max_marks
           });
         });
       } else {
-        // No sub-components, use component directly
         mapped.push({
-          component_id: comp.name.toLowerCase().replace(/\s+/g, '_'),
+          component_id: comp.component_id,
           component_name: comp.name,
           max_marks: comp.max_marks
         });
@@ -89,12 +105,29 @@ export default function ResultsUpload({ teacherId, profile, selectedClass: initi
     return mapped;
   };
 
-  // Use marking scheme components or default
-  const components = mapComponents(markingScheme);
+  const components = mapComponents(markingScheme, selectedSessionId);
 
-  // ===== FETCH DATA =====
+  // ===== FETCH EXAM SESSIONS =====
   useEffect(() => {
-    if (!teacherId) return;
+    // Fetch available exam sessions from backend
+    const fetchExamSessions = async () => {
+      try {
+        const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+        const response = await fetch(`${API_BASE}/api/exam-sessions`);
+        if (response.ok) {
+          const data = await response.json();
+          setExamSessions(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch exam sessions:", err);
+      }
+    };
+    fetchExamSessions();
+  }, []);
+
+  // ===== FETCH STUDENTS & MARKING SCHEME =====
+  useEffect(() => {
+    if (!teacherId || !selectedClass || !selectedSection) return;
 
     dispatch(
       getStudentsForResults({
@@ -112,171 +145,204 @@ export default function ResultsUpload({ teacherId, profile, selectedClass: initi
     );
   }, [teacherId, selectedClass, selectedSection, dispatch]);
 
-  // ===== INIT MARKS =====
+  // ===== INIT & FETCH MARKS DATA =====
   useEffect(() => {
-    if (!students.length || !components.length) return;
+    if (!students.length || !components.length || !selectedSessionId || !selectedSubject) {
+      setMarksData({});
+      return;
+    }
 
-    setMarksData((prev) => {
-      let changed = false;
-      const updated = { ...prev };
+    const fetchExistingMarks = async () => {
+      try {
+        const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+        const session = examSessions.find(s => s._id === selectedSessionId);
+        const academicYear = session?.academic_year || "2025-2026";
 
-      students.forEach((student) => {
-        if (!updated[student.admission_no]) {
-          updated[student.admission_no] = {};
-          changed = true;
+        const url = new URL(`${API_BASE}/api/teacher/${teacherId}/results/draft`);
+        url.searchParams.append("exam_id", selectedSessionId);
+        url.searchParams.append("subject", selectedSubject);
+        url.searchParams.append("class", selectedClass);
+        url.searchParams.append("section", selectedSection);
+        url.searchParams.append("academic_year", academicYear);
+
+        const response = await fetch(url);
+        let existingMarks = {};
+
+        if (response.ok) {
+          const data = await response.json();
+          existingMarks = data.marks || {};
         }
 
-        components.forEach((comp) => {
-          if (!updated[student.admission_no][comp.component_id]) {
-            updated[student.admission_no][comp.component_id] = {
-              obtained: "",
-              absent: false
-            };
-            changed = true;
-          }
+        setMarksData((prev) => {
+          let hasChanges = false;
+          const updated = { ...prev };
+
+          students.forEach((student) => {
+            if (!updated[student.admission_no]) {
+              updated[student.admission_no] = {};
+              hasChanges = true;
+            }
+
+            const dbStudentMarks = existingMarks[student.admission_no] || {};
+
+            components.forEach((comp) => {
+              const currentVal = updated[student.admission_no][comp.component_id];
+              const savedMark = dbStudentMarks[comp.component_id];
+
+              if (!currentVal || Object.keys(dbStudentMarks).length > 0) {
+                const newVal = {
+                  obtained: savedMark && savedMark.obtained !== undefined ? savedMark.obtained : "",
+                  absent: savedMark ? savedMark.absent : false
+                };
+
+                // Only update if there's a difference to prevent infinite loop
+                if (!currentVal || currentVal.obtained !== newVal.obtained || currentVal.absent !== newVal.absent) {
+                  updated[student.admission_no][comp.component_id] = newVal;
+                  hasChanges = true;
+                }
+              }
+            });
+          });
+
+          return hasChanges ? updated : prev;
         });
-      });
 
-      return changed ? updated : prev;
-    });
-  }, [students, components]);
+      } catch (error) {
+        console.error("Error fetching existing marks", error);
+      }
+    };
 
+    fetchExistingMarks();
+  }, [selectedSessionId, selectedSubject, selectedClass, selectedSection, teacherId, students.length, components.length, components, examSessions, students]);
 
-  // ===== SUCCESS/ERROR HANDLING =====
+  // ===== NOTIFICATIONS =====
   useEffect(() => {
     if (success) {
       setShowSuccessMsg(true);
-      setTimeout(() => {
-        setShowSuccessMsg(false);
-        dispatch(clearSuccess());
-      }, 3000);
+      setTimeout(() => { setShowSuccessMsg(false); dispatch(clearSuccess()); }, 3000);
     }
-  }, [success, dispatch]);
-
-  useEffect(() => {
     if (error) {
       setShowErrorMsg(true);
-      setTimeout(() => {
-        setShowErrorMsg(false);
-        dispatch(clearError());
-      }, 5000);
+      setTimeout(() => { setShowErrorMsg(false); dispatch(clearError()); }, 5000);
     }
-  }, [error, dispatch]);
+  }, [success, error, dispatch]);
 
-  // ===== HANDLERS =====
-  const handleMarkChange = (admissionNo, componentId, value, maxMarks) => {
-    // Allow empty string to clear the input
-    if (value === "") {
-      setMarksData((prev) => ({
-        ...prev,
-        [admissionNo]: {
-          ...prev[admissionNo],
-          [componentId]: {
-            ...prev[admissionNo]?.[componentId],
-            obtained: ""
-          }
-        }
-      }));
-      return;
-    }
 
-    const numValue = Number(value);
-
-    // Validate against max marks
-    if (numValue > maxMarks) {
-      alert(`Marks cannot exceed ${maxMarks}`);
-      return;
-    }
-
-    setMarksData((prev) => ({
-      ...prev,
-      [admissionNo]: {
-        ...prev[admissionNo],
-        [componentId]: {
-          ...prev[admissionNo]?.[componentId],
-          obtained: numValue
-        }
-      }
-    }));
-  };
-
-  const handleAbsentToggle = (admissionNo, componentId) => {
-    setMarksData((prev) => ({
-      ...prev,
-      [admissionNo]: {
-        ...prev[admissionNo],
-        [componentId]: {
-          ...prev[admissionNo]?.[componentId],
-          absent: !prev[admissionNo]?.[componentId]?.absent,
-          obtained: prev[admissionNo]?.[componentId]?.absent ? 0 : prev[admissionNo]?.[componentId]?.obtained
-        }
-      }
-    }));
-  };
-
+  // ===== AUTO GRADE CALCULATOR =====
   const calculateTotal = (admissionNo) => {
     let obtained = 0;
     let max = 0;
 
     components.forEach((c) => {
       const mark = marksData[admissionNo]?.[c.component_id];
-      if (mark && !mark.absent) obtained += mark.obtained;
-      max += c.max_marks;
+      if (mark && !mark.absent && mark.obtained !== "") {
+        obtained += Number(mark.obtained);
+      }
+      max += Number(c.max_marks);
     });
 
+    const percentage = max > 0 ? (obtained / max) * 100 : 0;
     return {
       obtained,
       max,
-      percentage: max ? ((obtained / max) * 100).toFixed(2) : "0.00"
+      percentage: percentage.toFixed(2)
     };
   };
 
-  const getGrade = (p) => {
-    if (p >= 90) return "A+";
-    if (p >= 80) return "A";
-    if (p >= 70) return "B+";
-    if (p >= 60) return "B";
-    if (p >= 50) return "C";
-    if (p >= 33) return "D";
-    return "F";
+  const getAutoGrade = (percentage) => {
+    if (!markingScheme?.grading?.grades) {
+      // Default 9-point scale
+      if (percentage >= 91) return "A1";
+      if (percentage >= 81) return "A2";
+      if (percentage >= 71) return "B1";
+      if (percentage >= 61) return "B2";
+      if (percentage >= 51) return "C1";
+      if (percentage >= 41) return "C2";
+      if (percentage >= 33) return "D";
+      if (percentage > 20) return "E1";
+      return "E2";
+    }
+
+    const gradeObj = markingScheme.grading.grades.find(
+      g => percentage >= g.min && percentage <= g.max
+    );
+    return gradeObj ? gradeObj.grade : "F";
   };
 
   const getGradeColor = (grade) => {
-    const colors = {
-      "A+": "text-green-700 bg-green-50 border-green-200",
-      "A": "text-green-600 bg-green-50 border-green-200",
-      "B+": "text-blue-700 bg-blue-50 border-blue-200",
-      "B": "text-blue-600 bg-blue-50 border-blue-200",
-      "C": "text-yellow-700 bg-yellow-50 border-yellow-200",
-      "D": "text-orange-700 bg-orange-50 border-orange-200",
-      "F": "text-red-700 bg-red-50 border-red-200"
-    };
-    return colors[grade] || "text-gray-700 bg-gray-50 border-gray-200";
+    if (grade.includes("A")) return "text-green-700 bg-green-50 border-green-200";
+    if (grade.includes("B")) return "text-blue-700 bg-blue-50 border-blue-200";
+    if (grade.includes("C")) return "text-yellow-700 bg-yellow-50 border-yellow-200";
+    if (grade.includes("D")) return "text-orange-700 bg-orange-50 border-orange-200";
+    return "text-red-700 bg-red-50 border-red-200";
   };
 
-  // ===== SUBMIT =====
-  const handleSubmit = (publish) => {
-    if (!selectedExam || !selectedSubject) {
-      alert("Please select both Exam and Subject");
+  // ===== HANDLERS =====
+  const handleMarkChange = (admissionNo, componentId, value, maxMarks) => {
+    if (value === "") {
+      setMarksData((prev) => ({
+        ...prev,
+        [admissionNo]: {
+          ...prev[admissionNo],
+          [componentId]: { ...prev[admissionNo]?.[componentId], obtained: "" }
+        }
+      }));
       return;
     }
 
-    // Validate that at least some marks are entered (allow 0)
+    const numValue = Number(value);
+    if (numValue > maxMarks) {
+      alert(`Marks cannot exceed the max component marks (${maxMarks})`);
+      return;
+    }
+
+    setMarksData((prev) => ({
+      ...prev,
+      [admissionNo]: {
+        ...prev[admissionNo],
+        [componentId]: { ...prev[admissionNo]?.[componentId], obtained: numValue, absent: false }
+      }
+    }));
+  };
+
+  const handleAbsentToggle = (admissionNo, componentId) => {
+    setMarksData((prev) => {
+      const isCurrentlyAbsent = prev[admissionNo]?.[componentId]?.absent;
+      return {
+        ...prev,
+        [admissionNo]: {
+          ...prev[admissionNo],
+          [componentId]: {
+            ...prev[admissionNo]?.[componentId],
+            absent: !isCurrentlyAbsent,
+            obtained: !isCurrentlyAbsent ? "" : prev[admissionNo]?.[componentId]?.obtained
+          }
+        }
+      };
+    });
+  };
+
+  const handleSubmit = (publish) => {
+    if (!selectedSessionId || !selectedSubject) {
+      alert("Please select both Exam Session and Subject");
+      return;
+    }
+
     const hasMarks = Object.values(marksData).some(studentMarks =>
-      Object.values(studentMarks).some(mark => mark.obtained !== "" && mark.obtained !== undefined && mark.obtained !== null)
+      Object.values(studentMarks).some(mark => mark.obtained !== "" || mark.absent)
     );
 
     if (!hasMarks) {
-      alert("Please enter marks for at least one student");
+      alert("Please enter marks for at least one student before uploading.");
       return;
     }
 
     const payload = {
-      exam_id: selectedExam,
+      exam_id: selectedSessionId, // Ties to exam_sessions collection
       subject: selectedSubject,
       class: selectedClass,
       section: selectedSection,
-      academic_year: "2024-25",
+      academic_year: examSessions.find(e => e._id === selectedSessionId)?.academic_year || "2025-2026",
       auto_publish: publish,
       students_marks: students.map((s) => ({
         admission_no: s.admission_no,
@@ -287,309 +353,246 @@ export default function ResultsUpload({ teacherId, profile, selectedClass: initi
     dispatch(uploadResults({ teacherId, resultsData: payload }));
   };
 
-  // ===== CSV UPLOAD =====
-  const handleCSVUpload = (event) => {
-    const file = event.target.files[0];
+  // ===== BULK EXCEL/CSV =====
+  const downloadTemplate = () => {
+    if (!students.length) return;
+
+    const headers = ["Admission No", "Student Name", ...components.map(c => `${c.component_name} (Max: ${c.max_marks})`)];
+    const rows = students.map(s => [
+      s.admission_no,
+      `${s.personal_details?.first_name || ""} ${s.personal_details?.last_name || ""}`,
+      ...components.map(() => "")
+    ]);
+
+    const csvContent = [headers, ...rows].map(row => row.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `Marks_Template_Class${selectedClass}${selectedSection}_${selectedSubject}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleCSVUpload = (e) => {
+    const file = e.target.files[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = (evt) => {
       try {
-        const text = e.target.result;
+        const text = evt.target.result;
         const rows = text.split('\n').map(row => row.split(','));
-
         const newMarksData = { ...marksData };
 
-        // Process each row (skip header)
+        // Start from row 1 to skip header
         for (let i = 1; i < rows.length; i++) {
           const row = rows[i];
           if (row.length < 3) continue;
 
           const admissionNo = row[0].trim();
+          if (!students.find(s => s.admission_no === admissionNo)) continue;
 
-          // Find student
-          const student = students.find(s => s.admission_no === admissionNo);
-          if (!student) continue;
-
-          // Process marks for each component
           components.forEach((comp, idx) => {
-            const markValue = parseInt(row[idx + 2]); // +2 to skip admission_no and name
-            if (!isNaN(markValue)) {
-              newMarksData[admissionNo][comp.component_id] = {
-                obtained: markValue,
-                absent: false
-              };
+            const markStr = row[idx + 2]?.trim();
+            if (markStr !== undefined && markStr !== "") {
+              if (markStr.toUpperCase() === "ABS" || markStr.toUpperCase() === "A") {
+                newMarksData[admissionNo][comp.component_id] = { obtained: "", absent: true };
+              } else {
+                const markValue = parseFloat(markStr);
+                if (!isNaN(markValue) && markValue <= comp.max_marks) {
+                  newMarksData[admissionNo][comp.component_id] = { obtained: markValue, absent: false };
+                }
+              }
             }
           });
         }
 
         setMarksData(newMarksData);
-        alert("CSV uploaded successfully!");
+        alert("CSV Marks mapped successfully. Please review and click Publish.");
       } catch (err) {
-        alert("Error parsing CSV file. Please check the format.");
+        alert("Failed to parse CSV. Make sure you use the downloaded template.");
       }
     };
     reader.readAsText(file);
+    e.target.value = null; // reset
   };
 
-  // ===== CSV TEMPLATE =====
-  const downloadTemplate = () => {
-    const headers = [
-      "Admission No",
-      "Student Name",
-      ...components.map((c) => c.component_name)
-    ];
-
-    const rows = students.map((s) => [
-      s.admission_no,
-      `${s.personal_details?.first_name || ""} ${s.personal_details?.last_name || ""}`,
-      ...components.map(() => 0)
-    ]);
-
-    const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `marks_template_${selectedClass}_${selectedSection}_${selectedSubject || 'subject'}.csv`;
-    a.click();
-  };
-
-  // ===== UI =====
+  // ===== UI RENDERING =====
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <div className="max-w-7xl mx-auto">
-        {/* Success Message */}
+      <div className="max-w-7xl mx-auto pb-10">
+
+        {/* Alerts */}
         {showSuccessMsg && (
-          <div className="fixed top-4 right-4 z-50 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-slide-in">
-            <CheckCircle size={20} />
-            <span>Results uploaded successfully!</span>
-            <button onClick={() => setShowSuccessMsg(false)}>
-              <X size={18} />
-            </button>
+          <div className="fixed top-4 right-4 z-50 bg-green-500 text-white px-6 py-3 rounded-lg shadow flex items-center gap-2">
+            <CheckCircle size={20} /> <span>Results saved successfully!</span>
+            <button onClick={() => setShowSuccessMsg(false)}><X size={18} /></button>
           </div>
         )}
-
-        {/* Error Message */}
         {showErrorMsg && (
-          <div className="fixed top-4 right-4 z-50 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-slide-in">
-            <AlertCircle size={20} />
-            <span>{error?.message || "Failed to upload results"}</span>
-            <button onClick={() => setShowErrorMsg(false)}>
-              <X size={18} />
-            </button>
+          <div className="fixed top-4 right-4 z-50 bg-red-500 text-white px-6 py-3 rounded-lg shadow flex items-center gap-2">
+            <AlertCircle size={20} /> <span>{error?.message || "Failed to save results"}</span>
+            <button onClick={() => setShowErrorMsg(false)}><X size={18} /></button>
           </div>
         )}
 
-        {/* Header Section */}
-        <div className="bg-transparent sm:bg-white sm:rounded-xl sm:shadow-sm sm:border sm:border-gray-100 p-4 sm:p-6 mb-4 sm:mb-6">
-          <div className="flex items-center justify-between mb-4 sm:mb-6">
+        {/* Header */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+          <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Upload Results</h1>
-              <p className="text-sm sm:text-base text-gray-500 mt-1 font-medium">Enter marks and publish results</p>
-            </div>
-            <div className="bg-indigo-50 p-3 rounded-2xl hidden sm:block">
-              <Upload className="text-indigo-600" size={28} />
+              <h1 className="text-2xl font-bold text-gray-900">Upload Marks</h1>
+              <p className="text-gray-500 mt-1">Select class, exam session, and upload scores or Excel sheet.</p>
             </div>
           </div>
 
-          {/* SELECTION */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-            <div className="col-span-1">
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Class</label>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Class</label>
               <select
                 value={selectedClass}
                 onChange={(e) => setSelectedClass(e.target.value)}
-                className="w-full px-3 py-2.5 sm:py-2.5 bg-gray-50 border border-gray-200 rounded-xl sm:rounded-lg text-sm font-semibold focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all"
+                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none"
               >
-                {[...Array(12)].map((_, i) => (
-                  <option key={i + 1} value={i + 1}>Class {i + 1}</option>
+                {["PG", "Nursery", "LKG", "UKG", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"].map(c => (
+                  <option key={c} value={c}>{isNaN(c) ? c : `Class ${c}`}</option>
                 ))}
               </select>
             </div>
 
-            <div className="col-span-1">
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Section</label>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Section</label>
               <select
                 value={selectedSection}
                 onChange={(e) => setSelectedSection(e.target.value)}
-                className="w-full px-3 py-2.5 sm:py-2.5 bg-gray-50 border border-gray-200 rounded-xl sm:rounded-lg text-sm font-semibold focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all"
+                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none"
               >
-                {["A", "B", "C", "D"].map((s) => (
-                  <option key={s} value={s}>Section {s}</option>
-                ))}
+                {["A", "B", "C", "D"].map(s => <option key={s} value={s}>Section {s}</option>)}
               </select>
             </div>
 
-            <div className="col-span-2 sm:col-span-1">
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Exam</label>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Exam Session</label>
               <select
-                value={selectedExam}
-                onChange={(e) => setSelectedExam(e.target.value)}
-                className="w-full px-3 py-2.5 sm:py-2.5 bg-gray-50 border border-gray-200 rounded-xl sm:rounded-lg text-sm font-semibold focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all"
+                value={selectedSessionId}
+                onChange={(e) => setSelectedSessionId(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none"
               >
                 <option value="">Select Exam</option>
-                {exams.map((e) => (
-                  <option key={e.id} value={e.id}>{e.name}</option>
+                {examSessions.map(e => (
+                  <option key={e._id} value={e._id}>{e.name} ({e.academic_year})</option>
                 ))}
               </select>
             </div>
 
-            <div className="col-span-2 sm:col-span-1">
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Subject</label>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Subject</label>
               <select
                 value={selectedSubject}
                 onChange={(e) => setSelectedSubject(e.target.value)}
-                className="w-full px-3 py-2.5 sm:py-2.5 bg-gray-50 border border-gray-200 rounded-xl sm:rounded-lg text-sm font-semibold focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all"
+                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none"
               >
                 <option value="">Select Subject</option>
-                {subjects.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
+                {subjects.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
           </div>
 
-          {/* Info Banner */}
-          {markingScheme?.scheme_name ? (
-            <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-4 flex items-start gap-3">
-              <CheckCircle className="text-green-600 flex-shrink-0 mt-0.5" size={20} />
-              <div className="text-sm text-green-800">
-                <p className="font-semibold mb-1">Using: {markingScheme.scheme_name}</p>
-                <p>
-                  {components.map(c => c.component_name).join(' + ')}
-                  {' '}(Total: {components.reduce((sum, c) => sum + c.max_marks, 0)} marks)
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
-              <AlertCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
-              <div className="text-sm text-blue-800">
-                <p className="font-semibold mb-1">Using Default Marking Scheme</p>
-                <p>Theory (70 marks) + Practical (30 marks). Admin can configure marking schemes for custom components.</p>
-              </div>
+          {markingScheme?.scheme_name && selectedSessionId && components.length > 0 && (
+            <div className="mt-4 bg-indigo-50 rounded-lg p-3 flex items-center gap-2 border border-indigo-100">
+              <CheckCircle className="text-indigo-600" size={18} />
+              <span className="text-sm text-indigo-800 font-medium">
+                Active Scheme for this Exam: <span className="font-bold">{markingScheme.scheme_name}</span>
+                {markingScheme.evaluation_mode ? ` (${markingScheme.evaluation_mode})` : ''}.
+                Total for this exam: <span className="font-bold">{components.reduce((sum, c) => sum + Number(c.max_marks), 0)}</span> marks.
+              </span>
             </div>
           )}
 
-          <div className="mt-4 flex flex-row items-center gap-2 sm:gap-3 overflow-x-auto hide-scrollbar pb-2 sm:pb-0 -mx-4 px-4 sm:mx-0 sm:px-0">
+          <div className="mt-5 flex items-center gap-3">
             <button
               onClick={downloadTemplate}
-              disabled={!students.length}
-              className="flex items-center justify-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 disabled:bg-gray-100 disabled:text-gray-400 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors whitespace-nowrap active:scale-95"
+              disabled={!students.length || !selectedSubject}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-bold disabled:opacity-50 transition-colors"
             >
-              <Download size={18} /> Template
+              <Download size={16} /> Download Excel Template
             </button>
-
-            <label className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm transition-colors cursor-pointer shadow-sm whitespace-nowrap active:scale-95">
-              <FileUp size={18} /> Upload CSV
-              <input
-                type="file"
-                accept=".csv"
-                onChange={handleCSVUpload}
-                className="hidden"
-              />
+            <label className="flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-sm font-bold cursor-pointer transition-colors">
+              <FileUp size={16} /> Bulk Upload CSV
+              <input type="file" accept=".csv" onChange={handleCSVUpload} className="hidden" />
             </label>
-
-            {(!selectedExam || !selectedSubject) && (
-              <div className="flex items-center gap-2 text-amber-600 text-sm">
-                <AlertCircle size={16} />
-                <span>Please select exam and subject to proceed</span>
-              </div>
-            )}
-
-            {loading && (
-              <div className="flex items-center gap-2 text-blue-600 text-sm">
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent"></div>
-                <span>Loading...</span>
-              </div>
-            )}
           </div>
         </div>
 
-        {/* DATA ENTRY SECTION */}
+        {/* Data Table */}
         {students.length > 0 ? (
-          <div className="bg-transparent sm:bg-white sm:rounded-xl sm:shadow-sm sm:border sm:border-gray-100 overflow-hidden mb-24 sm:mb-0">
-
-            {/* Desktop Table View (Hidden on mobile) */}
-            <div className="hidden sm:block overflow-x-auto">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="overflow-x-auto">
               <table className="w-full">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-100">
-                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50">Roll No</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider min-w-[140px]">Admission No</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider min-w-[180px]">Student Name</th>
-                    {components.map((c) => (
-                      <th key={c.component_id} className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider min-w-[140px]">
-                        <div>{c.component_name}</div>
-                        <div className="text-[10px] font-medium text-indigo-400 mt-0.5">(Max: {c.max_marks})</div>
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Roll No</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Student Name</th>
+                    {components.map(c => (
+                      <th key={c.component_id} className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider min-w-[120px]">
+                        {c.component_name} <br /> <span className="text-indigo-400 font-medium">(Max: {c.max_marks})</span>
                       </th>
                     ))}
-                    <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Total</th>
-                    <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">%</th>
-                    <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Grade</th>
+                    <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider bg-gray-100">Total</th>
+                    <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider bg-gray-100">Grade</th>
                   </tr>
                 </thead>
-
                 <tbody className="divide-y divide-gray-100">
-                  {students.map((s, idx) => {
-                    const total = calculateTotal(s.admission_no);
-                    const grade = getGrade(Number(total.percentage));
+                  {students.map(s => {
+                    const totalStats = calculateTotal(s.admission_no);
+                    const autoGrade = getAutoGrade(Number(totalStats.percentage));
 
                     return (
-                      <tr key={s.admission_no} className="hover:bg-gray-50/50 transition-colors">
-                        <td className="px-4 py-3 text-sm font-bold text-gray-900 bg-inherit">{s.roll_no}</td>
-                        <td className="px-4 py-3 text-xs font-mono font-medium text-gray-500">{s.admission_no}</td>
-                        <td className="px-4 py-3 text-sm font-semibold text-gray-900">
+                      <tr key={s.admission_no} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-sm font-medium text-gray-600">{s.roll_no}</td>
+                        <td className="px-4 py-3 text-sm font-bold text-gray-900 border-r border-gray-100">
                           {s.personal_details?.first_name} {s.personal_details?.last_name}
                         </td>
 
-                        {components.map((c) => {
-                          const isAbsent = marksData[s.admission_no]?.[c.component_id]?.absent;
+                        {components.map(c => {
+                          const markData = marksData[s.admission_no]?.[c.component_id];
+                          const isAbsent = markData?.absent;
 
                           return (
-                            <td key={c.component_id} className="px-4 py-3">
-                              <div className="flex flex-col gap-1.5 items-center">
+                            <td key={c.component_id} className="px-4 py-3 text-center border-r border-gray-50">
+                              <div className="flex items-center justify-center gap-2">
                                 <input
                                   type="number"
                                   min="0"
                                   max={c.max_marks}
                                   disabled={isAbsent}
-                                  value={marksData[s.admission_no]?.[c.component_id]?.obtained !== undefined ? marksData[s.admission_no]?.[c.component_id]?.obtained : ""}
-                                  onChange={(e) =>
-                                    handleMarkChange(
-                                      s.admission_no,
-                                      c.component_id,
-                                      e.target.value,
-                                      c.max_marks
-                                    )
-                                  }
-                                  className={`w-20 px-2 py-1.5 text-center text-sm font-bold border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all ${isAbsent ? 'bg-gray-100 border-gray-200 text-gray-400' : 'bg-gray-50 border-gray-200 text-gray-900 hover:bg-white focus:bg-white'
-                                    }`}
+                                  value={markData?.obtained !== undefined ? markData.obtained : ""}
+                                  onChange={(e) => handleMarkChange(s.admission_no, c.component_id, e.target.value, c.max_marks)}
+                                  className={`w-16 px-2 py-1 text-center font-bold text-sm border rounded focus:ring-2 focus:ring-indigo-500 outline-none ${isAbsent ? 'bg-gray-100 text-transparent' : 'bg-white'}`}
+                                  placeholder={isAbsent ? "-" : "0"}
                                 />
-                                <label className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 cursor-pointer uppercase tracking-wider">
+                                <label className="flex items-center gap-1 text-[10px] font-bold text-gray-400 cursor-pointer">
                                   <input
                                     type="checkbox"
-                                    checked={isAbsent}
+                                    checked={isAbsent || false}
                                     onChange={() => handleAbsentToggle(s.admission_no, c.component_id)}
-                                    className="w-3 h-3 text-red-500 border-gray-300 rounded focus:ring-red-500"
+                                    className="rounded border-gray-300 text-red-500 focus:ring-red-500"
                                   />
-                                  Abs
+                                  AB
                                 </label>
                               </div>
                             </td>
                           );
                         })}
 
-                        <td className="px-4 py-3 text-center text-sm font-bold text-indigo-700 bg-indigo-50/30">
-                          {total.obtained}<span className="text-xs text-gray-400 font-medium">/{total.max}</span>
+                        <td className="px-4 py-3 text-center bg-gray-50 font-bold text-gray-900">
+                          {totalStats.obtained} <span className="text-xs text-gray-400 font-medium">/ {totalStats.max}</span>
                         </td>
-                        <td className="px-4 py-3 text-center text-sm font-bold text-gray-900 bg-indigo-50/30">
-                          {total.percentage}%
-                        </td>
-                        <td className="px-4 py-3 text-center bg-indigo-50/30">
-                          <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold border ${getGradeColor(grade)}`}>
-                            {grade}
+                        <td className="px-4 py-3 text-center bg-gray-50">
+                          <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold border ${getGradeColor(autoGrade)}`}>
+                            {autoGrade}
                           </span>
                         </td>
                       </tr>
@@ -599,118 +602,33 @@ export default function ResultsUpload({ teacherId, profile, selectedClass: initi
               </table>
             </div>
 
-            {/* Mobile Card View */}
-            <div className="sm:hidden flex flex-col gap-3 px-4 sm:px-0">
-              {students.map((s) => {
-                const total = calculateTotal(s.admission_no);
-                const grade = getGrade(Number(total.percentage));
-
-                return (
-                  <div key={s.admission_no} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 animate-in fade-in zoom-in-95 duration-200">
-                    <div className="flex justify-between items-start mb-4 border-b border-gray-50 pb-3">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-0.5 rounded-md">Roll {s.roll_no}</span>
-                          <span className="text-[10px] font-mono font-medium text-gray-400">{s.admission_no}</span>
-                        </div>
-                        <h3 className="text-base font-bold text-gray-900 leading-tight">
-                          {s.personal_details?.first_name} {s.personal_details?.last_name}
-                        </h3>
-                      </div>
-                      <div className="text-right flex flex-col items-end">
-                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border mb-1 ${getGradeColor(grade)}`}>
-                          Grade {grade}
-                        </span>
-                        <div className="text-sm font-bold text-indigo-700">{total.obtained}<span className="text-xs text-gray-400">/{total.max}</span></div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      {components.map((c) => {
-                        const isAbsent = marksData[s.admission_no]?.[c.component_id]?.absent;
-
-                        return (
-                          <div key={c.component_id} className="bg-gray-50/80 p-3 rounded-xl border border-gray-100">
-                            <div className="flex justify-between items-center mb-2">
-                              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider truncate mr-2">{c.component_name}</label>
-                              <span className="text-[9px] font-semibold text-indigo-400 bg-indigo-50 px-1.5 rounded">Max {c.max_marks}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="number"
-                                min="0"
-                                max={c.max_marks}
-                                disabled={isAbsent}
-                                placeholder="0"
-                                value={marksData[s.admission_no]?.[c.component_id]?.obtained !== undefined ? marksData[s.admission_no]?.[c.component_id]?.obtained : ""}
-                                onChange={(e) =>
-                                  handleMarkChange(
-                                    s.admission_no,
-                                    c.component_id,
-                                    e.target.value,
-                                    c.max_marks
-                                  )
-                                }
-                                className={`flex-1 w-full px-2 py-2 text-center text-sm font-bold border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all ${isAbsent ? 'bg-gray-200 border-gray-200 text-gray-400' : 'bg-white border-gray-200 text-gray-900'
-                                  }`}
-                              />
-                              <label className="flex flex-col items-center gap-1 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={isAbsent}
-                                  onChange={() => handleAbsentToggle(s.admission_no, c.component_id)}
-                                  className="w-4 h-4 text-red-500 border-gray-300 rounded focus:ring-red-500"
-                                />
-                                <span className="text-[8px] font-bold text-gray-500 uppercase">Abs</span>
-                              </label>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Sticky Action Footer */}
-            <div className="fixed sm:static bottom-0 left-0 right-0 sm:mt-0 p-4 sm:p-6 bg-white sm:bg-gray-50 border-t border-gray-100 sm:border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-3 sm:gap-4 z-30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] sm:shadow-none pb-safe">
-              <div className="text-sm font-semibold text-gray-500 w-full sm:w-auto text-center sm:text-left">
-                Students: <span className="font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">{students.length}</span>
-              </div>
-              <div className="flex w-full sm:w-auto gap-2 sm:gap-3">
-                <button
-                  onClick={() => handleSubmit(false)}
-                  disabled={loading || !selectedExam || !selectedSubject}
-                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400 text-gray-700 px-4 sm:px-6 py-3 rounded-xl font-bold transition-all active:scale-95 text-sm"
-                >
-                  <Save size={18} /> Draft
-                </button>
-
-                <button
-                  onClick={() => handleSubmit(true)}
-                  disabled={loading || !selectedExam || !selectedSubject}
-                  className="flex-[2] sm:flex-none flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 disabled:cursor-not-allowed text-white px-4 sm:px-6 py-3 rounded-xl font-bold transition-all shadow-sm active:scale-95 text-sm"
-                >
-                  <Eye size={18} /> Publish
-                </button>
-              </div>
+            <div className="bg-gray-50 p-4 border-t border-gray-200 flex items-center justify-end gap-3">
+              <span className="text-sm font-medium text-gray-500 mr-4">Total Students: {students.length}</span>
+              <button
+                onClick={() => handleSubmit(false)}
+                disabled={loading || !selectedSessionId || !selectedSubject}
+                className="px-6 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 font-bold text-sm hover:bg-gray-50 disabled:opacity-50"
+              >
+                Save Draft
+              </button>
+              <button
+                onClick={() => handleSubmit(true)}
+                disabled={loading || !selectedSessionId || !selectedSubject}
+                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-white font-bold text-sm shadow-sm disabled:opacity-50"
+              >
+                Publish Marks
+              </button>
             </div>
           </div>
         ) : (
-          <div className="bg-transparent sm:bg-white sm:rounded-2xl sm:border border-gray-100 sm:shadow-sm p-8 sm:p-16 text-center mx-4 sm:mx-0">
+          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
             {loading ? (
-              <div className="flex flex-col items-center gap-4">
-                <div className="animate-spin rounded-full h-10 w-10 border-[3px] border-indigo-200 border-t-indigo-600"></div>
-                <p className="text-sm font-bold text-gray-500 uppercase tracking-wider">Loading students...</p>
-              </div>
+              <p className="text-gray-500 font-medium">Loading...</p>
             ) : (
-              <div className="flex flex-col items-center justify-center">
-                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
-                  <AlertCircle className="text-gray-300" size={32} />
-                </div>
-                <h3 className="text-lg font-bold text-gray-900 mb-1">No Students Found</h3>
-                <p className="text-sm font-medium text-gray-500">Please select a class and section to view students</p>
+              <div>
+                <AlertCircle className="mx-auto text-gray-300 w-12 h-12 mb-3" />
+                <h3 className="text-lg font-bold text-gray-900">Ready to Upload</h3>
+                <p className="text-gray-500 text-sm">Select class, section, exam and subject above to load student list.</p>
               </div>
             )}
           </div>

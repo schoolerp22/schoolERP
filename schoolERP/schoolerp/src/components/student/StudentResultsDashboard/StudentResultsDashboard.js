@@ -77,6 +77,7 @@ export default function StudentResultsDashboard({ admissionNo, analytics, result
               onChange={(e) => setAcademicYear(e.target.value)}
               className="bg-white text-gray-800 rounded px-3 py-1 text-sm outline-none focus:ring-2 focus:ring-white"
             >
+              <option value="2025-26">2025-26</option>
               <option value="2024-25">2024-25</option>
               <option value="2023-24">2023-24</option>
               <option value="2022-23">2022-23</option>
@@ -164,6 +165,15 @@ export default function StudentResultsDashboard({ admissionNo, analytics, result
                 }`}
             >
               Performance Comparison
+            </button>
+            <button
+              onClick={() => setSelectedView('details')}
+              className={`px-6 py-3 font-medium ${selectedView === 'details'
+                ? 'border-b-2 border-blue-600 text-blue-600'
+                : 'text-gray-600 hover:text-gray-800'
+                }`}
+            >
+              Detailed Marks
             </button>
           </div>
         </div>
@@ -332,6 +342,70 @@ export default function StudentResultsDashboard({ admissionNo, analytics, result
                   </table>
                 </div>
               </div>
+            )}
+          </div>
+        )}
+
+        {/* Detailed Marks Tab */}
+        {selectedView === 'details' && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 md:p-6 mb-6">
+            <h3 className="text-xl font-bold text-gray-800 mb-4">Detailed Marks Sheet</h3>
+            {results && results.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full whitespace-nowrap">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Exam</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Subject</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600">Marks Obtained</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600">Maximum Marks</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600">Percentage</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600">Grade</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {results.map((result, idx) => {
+                      // We need to resolve exam name, currently we just display ID unless we have a cleaner label from elsewhere.
+                      // Often times result.exam_id is an ObjectId if not joined, or a string. 
+                      // If it's a raw string, we can try to make it readable.
+                      // First check if populated:
+                      let examName = typeof result.exam_id === 'object' && result.exam_id?.name ? result.exam_id.name : String(result.exam_id || 'Unknown Exam');
+
+                      // Also, sometimes the backend passes back 'exam_id' as object id but 'exam' or some other name isn't there, so we fallback.
+                      // In analytics it's often cleaned up as exam.exam_id.replace('_', ' '). Wait, `analytics.exams` has the exam name. Let's try to match it if it's an ID.
+                      const matchedExam = analytics?.exams?.find(e => e.exam_id === result.exam_id);
+                      if (matchedExam) {
+                        examName = matchedExam.exam_id;
+                      }
+
+                      // Let's just use the known structure the user showed. The user result JSON showed `exam_id: "69ac6b2e28b96d0da926c036"`. 
+                      // Without a lookup, we'll just display it unless there's an `exam_name` available. 
+                      // Wait! In the upload process, we gave exams a readable title or code. 
+                      // Let's check `result.exam_id?.name` or fallback to `result?.exam_code` or just `result.exam_id`.
+                      if (result.exam_name) {
+                        examName = result.exam_name;
+                      }
+
+                      return (
+                        <tr key={result._id || idx} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm text-gray-800">{examName}</td>
+                          <td className="px-4 py-3 text-sm text-gray-800 font-medium">{result.subject}</td>
+                          <td className="px-4 py-3 text-sm text-center text-blue-600 font-bold">{result.total_obtained || 0}</td>
+                          <td className="px-4 py-3 text-sm text-center text-gray-800 font-medium">{result.total_max || 0}</td>
+                          <td className="px-4 py-3 text-sm text-center text-gray-600">{result.percentage || 0}%</td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`px-2 py-1 rounded text-xs font-semibold ${getGradeColor(result.grade || 'N/A')}`}>
+                              {result.grade || 'N/A'}
+                            </span>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-gray-500 py-4">No detailed marks available for this academic year.</p>
             )}
           </div>
         )}

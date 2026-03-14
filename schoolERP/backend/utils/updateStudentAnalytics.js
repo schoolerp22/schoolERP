@@ -1,3 +1,4 @@
+import { ObjectId } from "mongodb";
 // Utility function to update student analytics
 // This should be called whenever results are published/updated/deleted
 
@@ -42,6 +43,45 @@ export async function updateStudentAnalytics(db, admissionNos, academicYear) {
                     });
                     console.log(`[Analytics] Student ${admissionNo}: Deleted analytics (no published results)`);
                     continue;
+                }
+
+                // Assign Fallback Grades to Fix DB 'N/A' issues
+                results.forEach(r => {
+                    if (!r.grade || r.grade === "N/A") {
+                        const p = r.percentage || 0;
+                        if (p >= 91) r.grade = 'A1';
+                        else if (p >= 81) r.grade = 'A2';
+                        else if (p >= 71) r.grade = 'B1';
+                        else if (p >= 61) r.grade = 'B2';
+                        else if (p >= 51) r.grade = 'C1';
+                        else if (p >= 41) r.grade = 'C2';
+                        else if (p >= 33) r.grade = 'D';
+                        else r.grade = 'E (Needs Improvement)';
+                    }
+                });
+
+                // Resolve Exam Names
+                try {
+                    const uniqueExamsRaw = [...new Set(results.map(r => r.exam_id))];
+                    const validObjectIds = uniqueExamsRaw.filter(id => id && id.length === 24 && ObjectId.isValid(id)).map(id => new ObjectId(id));
+
+                    const examsDb = await db.collection("exam_sessions").find({
+                        $or: [
+                            { _id: { $in: validObjectIds } },
+                            { exam_code: { $in: uniqueExamsRaw } }
+                        ]
+                    }).toArray();
+
+                    results.forEach(r => {
+                        const exam = examsDb.find(e => e._id.toString() === r.exam_id || e.exam_code === r.exam_id);
+                        if (exam) {
+                            r.exam_id = exam.title || exam.name || exam.exam_code || r.exam_id.replace('_', ' ');
+                        } else if (r.exam_name) {
+                            r.exam_id = r.exam_name;
+                        }
+                    });
+                } catch (err) {
+                    console.error("Analytics Exam Name Resolution Error:", err);
                 }
 
                 // Calculate overall performance
@@ -128,10 +168,31 @@ export async function updateStudentAnalytics(db, admissionNos, academicYear) {
 
                 let overallGrade = "N/A";
                 if (scheme) {
-                    const gradeInfo = scheme.grading.grades.find(
-                        g => avgPercentage >= g.min && avgPercentage <= g.max
-                    );
-                    overallGrade = gradeInfo ? gradeInfo.grade : "N/A";
+                    let gradesArray = [];
+                    if (scheme.grading && scheme.grading.grades) {
+                        gradesArray = scheme.grading.grades;
+                    } else if (scheme.grading_system && scheme.grading_system.grade_ranges) {
+                        gradesArray = scheme.grading_system.grade_ranges;
+                    }
+                    if (gradesArray && gradesArray.length > 0) {
+                        const gradeInfo = gradesArray.find(
+                            g => avgPercentage >= g.min && avgPercentage <= g.max
+                        );
+                        overallGrade = gradeInfo ? gradeInfo.grade : "N/A";
+                    }
+                }
+
+                // Universal CBSE Fallback
+                if (overallGrade === "N/A") {
+                    const p = avgPercentage || 0;
+                    if (p >= 91) overallGrade = 'A1';
+                    else if (p >= 81) overallGrade = 'A2';
+                    else if (p >= 71) overallGrade = 'B1';
+                    else if (p >= 61) overallGrade = 'B2';
+                    else if (p >= 51) overallGrade = 'C1';
+                    else if (p >= 41) overallGrade = 'C2';
+                    else if (p >= 33) overallGrade = 'D';
+                    else overallGrade = 'E (Needs Improvement)';
                 }
 
                 // Update or insert analytics

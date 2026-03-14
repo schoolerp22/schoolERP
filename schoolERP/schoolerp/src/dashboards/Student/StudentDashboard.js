@@ -49,7 +49,7 @@ const StudentDashboard = () => {
 
   const [view, setView] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [academicYear, setAcademicYear] = useState("2024-25");
+  const [academicYear, setAcademicYear] = useState("2025-26");
 
   useEffect(() => {
     console.log("🔄 Loading student data for:", studentId);

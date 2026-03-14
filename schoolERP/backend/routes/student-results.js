@@ -4,12 +4,24 @@ import { ObjectId } from "mongodb";
 const router = express.Router();
 const getDB = (req) => req.app.locals.db;
 
+// Helper to expand "2024-25" into "2024-2025" or "2025-26" into "2025-2026"
+const formatAcademicYear = (yearStr) => {
+  if (!yearStr) return "2024-2025";
+  if (yearStr.length === 9) return yearStr; // Already "2024-2025"
+
+  if (yearStr.includes("-") && yearStr.length === 7) {
+    const [start, end] = yearStr.split("-");
+    return `${start}-20${end}`;
+  }
+  return yearStr;
+};
+
 // @route   GET /api/student/:admissionNo/results
 // @desc    Get all published results for student
 router.get("/:admissionNo/results", async (req, res) => {
   try {
     const db = getDB(req);
-    const academicYear = req.query.year || "2024-25";
+    const academicYear = formatAcademicYear(req.query.year || "2024-25");
     const { exam_id, subject } = req.query;
 
     const query = {
@@ -26,7 +38,102 @@ router.get("/:admissionNo/results", async (req, res) => {
       .sort({ exam_id: 1, subject: 1 })
       .toArray();
 
-    res.json(results);
+    let finalResults = [...results];
+
+    // Attempt to dynamically fix 'N/A' grades from older faulty uploads
+    try {
+      const student = await db.collection("student").findOne({ admission_no: req.params.admissionNo })
+        || await db.collection("students").findOne({ admission_no: req.params.admissionNo });
+
+      if (student && student.class) {
+        let className = student.class;
+        // In case it's stored as "Class X"
+        className = String(className).replace(/class\s+/i, '').trim();
+
+        const allRegex = /^all$/i;
+        console.log("Looking for scheme with year:", { $in: [academicYear, academicYear.replace("-20", "-")] }, "and class:", className);
+
+        // Marking schemes for older templates use `class` instead of `applicable_to.classes`
+        const scheme = await db.collection("marking_schemes").findOne({
+          academic_year: { $in: [academicYear, academicYear.replace("-20", "-"), academicYear.split("-")[0]] },
+          $or: [
+            { class: className },
+            { class: allRegex },
+            { "applicable_to.classes": className },
+            { "applicable_to.classes": allRegex }
+          ]
+        });
+
+        console.log("Found scheme?", !!scheme);
+
+        if (scheme) {
+          let gradesArray = [];
+          if (scheme.grading && scheme.grading.grades) {
+            gradesArray = scheme.grading.grades;
+          } else if (scheme.grading_system && scheme.grading_system.grade_ranges) {
+            gradesArray = scheme.grading_system.grade_ranges;
+          }
+
+          if (gradesArray && gradesArray.length > 0) {
+            finalResults = finalResults.map(r => {
+              if (!r.grade || r.grade === "N/A") {
+                const gradeInfo = gradesArray.find(
+                  g => r.percentage >= g.min && r.percentage <= g.max
+                );
+                if (gradeInfo) {
+                  return { ...r, grade: gradeInfo.grade };
+                }
+              }
+              return r;
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Dynamic grade recalculation error:", err);
+    }
+
+    // Universal CBSE Fallback if scheme lookup STILL failed
+    finalResults = finalResults.map(r => {
+      if (!r.grade || r.grade === "N/A") {
+        const p = r.percentage || 0;
+        if (p >= 91) r.grade = 'A1';
+        else if (p >= 81) r.grade = 'A2';
+        else if (p >= 71) r.grade = 'B1';
+        else if (p >= 61) r.grade = 'B2';
+        else if (p >= 51) r.grade = 'C1';
+        else if (p >= 41) r.grade = 'C2';
+        else if (p >= 33) r.grade = 'D';
+        else r.grade = 'E (Needs Improvement)';
+      }
+      return r;
+    });
+
+    // Lookup exam names
+    try {
+      const examIds = [...new Set(finalResults.map(r => r.exam_id))];
+      const validObjectIds = examIds.filter(id => ObjectId.isValid(id)).map(id => new ObjectId(id));
+
+      const exams = await db.collection("exam_sessions").find({
+        $or: [
+          { _id: { $in: validObjectIds } },
+          { exam_code: { $in: examIds } }
+        ]
+      }).toArray();
+
+      const resultsWithNames = finalResults.map(r => {
+        const exam = exams.find(e => e._id.toString() === r.exam_id || e.exam_code === r.exam_id);
+        return {
+          ...r,
+          exam_name: exam ? (exam.title || exam.name || exam.exam_code || r.exam_id.replace('_', ' ')) : r.exam_id.replace('_', ' ')
+        };
+      });
+
+      res.json(resultsWithNames);
+    } catch (err) {
+      console.error("Exam name mapping error:", err);
+      res.json(finalResults);
+    }
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -37,7 +144,7 @@ router.get("/:admissionNo/results", async (req, res) => {
 router.get("/:admissionNo/results/exam/:examId", async (req, res) => {
   try {
     const db = getDB(req);
-    const academicYear = req.query.year || "2024-25";
+    const academicYear = formatAcademicYear(req.query.year || "2024-25");
 
     const results = await db.collection("results").find({
       admission_no: req.params.admissionNo,
@@ -91,7 +198,7 @@ router.get("/:admissionNo/results/exam/:examId", async (req, res) => {
 router.get("/:admissionNo/analytics", async (req, res) => {
   try {
     const db = getDB(req);
-    const academicYear = req.query.year || "2024-25";
+    const academicYear = formatAcademicYear(req.query.year || "2024-25");
 
     const analytics = await db.collection("student_analytics").findOne({
       admission_no: req.params.admissionNo,
@@ -118,7 +225,7 @@ router.get("/:admissionNo/analytics", async (req, res) => {
 router.get("/:admissionNo/performance-graph", async (req, res) => {
   try {
     const db = getDB(req);
-    const academicYear = req.query.year || "2024-25";
+    const academicYear = formatAcademicYear(req.query.year || "2024-25");
     const { type } = req.query; // 'exam-wise' or 'subject-wise'
 
     const analytics = await db.collection("student_analytics").findOne({
@@ -166,7 +273,7 @@ router.get("/:admissionNo/performance-graph", async (req, res) => {
 router.get("/:admissionNo/subject-performance/:subject", async (req, res) => {
   try {
     const db = getDB(req);
-    const academicYear = req.query.year || "2024-25";
+    const academicYear = formatAcademicYear(req.query.year || "2024-25");
 
     const results = await db.collection("results").find({
       admission_no: req.params.admissionNo,
@@ -226,7 +333,7 @@ router.get("/:admissionNo/subject-performance/:subject", async (req, res) => {
 router.get("/:admissionNo/class-rank", async (req, res) => {
   try {
     const db = getDB(req);
-    const academicYear = req.query.year || "2024-25";
+    const academicYear = formatAcademicYear(req.query.year || "2024-25");
     const { exam_id } = req.query;
 
     const student = await db.collection("students").findOne({

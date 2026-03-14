@@ -12,6 +12,7 @@ import studentResultsRoutes from './routes/student-results.js';
 import adminRoutes from './routes/adminRoutes.js';
 import chatRoutes from './routes/chatRoutes.js';
 import accountingRoutes from './routes/accountingRoutes.js';
+import examSessionRoutes from './routes/examSessionRoutes.js';
 import schoolSettingsRoutes from './routes/schoolSettingsRoutes.js';
 import parentRoutes from './routes/parentRoutes.js';
 
@@ -177,6 +178,7 @@ const startServer = async () => {
 
     app.use("/api/admin/school-settings", schoolSettingsRoutes);
     app.use("/api/admin", adminRoutes);
+    app.use("/api/exam-sessions", examSessionRoutes);
     app.use("/api/chat", chatRoutes);
     app.use("/api/accounting", accountingRoutes);
     app.use("/api/parent", parentRoutes);

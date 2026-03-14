@@ -5,6 +5,15 @@ import axios from "axios";
 // const API_URL = "https://schoolerp-1xul.onrender.com/api/teacher";
 const API_URL = `${process.env.REACT_APP_API_URL}/api/teacher`
 
+// Returns the current academic year e.g. "2025-2026" (April start)
+const currentAcademicYear = () => {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth(); // 0-indexed, March = 2, April = 3
+  const start = m < 3 ? y - 1 : y;
+  return `${start}-${start + 1}`;
+};
+
 
 // Get teacher profile
 export const getTeacherProfile = createAsyncThunk(
@@ -257,10 +266,11 @@ export const getDashboardStats = createAsyncThunk(
 // Get marking scheme
 export const getMarkingScheme = createAsyncThunk(
   "teacher/getMarkingScheme",
-  async ({ teacherId, classNum, section = "A", year = "2024-25" }, { rejectWithValue }) => {
+  async ({ teacherId, classNum, section = "All", year }, { rejectWithValue }) => {
+    const academicYear = year || currentAcademicYear();
     try {
       const response = await axios.get(
-        `${API_URL}/${teacherId}/marking-scheme/${classNum}?year=${year}&section=${section}`
+        `${API_URL}/${teacherId}/marking-scheme/${classNum}?year=${academicYear}&section=${section}`
       );
       return response.data;
     } catch (error) {
@@ -351,10 +361,11 @@ export const deleteResult = createAsyncThunk(
 // Get results dashboard stats
 export const getResultsStats = createAsyncThunk(
   "teacher/getResultsStats",
-  async ({ teacherId, year = "2024-25" }, { rejectWithValue }) => {
+  async ({ teacherId, year }, { rejectWithValue }) => {
+    const academicYear = year || currentAcademicYear();
     try {
       const response = await axios.get(
-        `${API_URL}/${teacherId}/results/stats/dashboard?year=${year}`
+        `${API_URL}/${teacherId}/results/stats/dashboard?year=${academicYear}`
       );
       return response.data;
     } catch (error) {

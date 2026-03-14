@@ -918,23 +918,26 @@ export default function FeesView() {
             {/* ── Distribution Breakdown Modal ── */}
             {viewingBreakdown && (
                 <div className="parent-modal-overlay" onClick={() => setViewingBreakdown(null)}>
-                    <div className="parent-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: "450px", width: "90%" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                            <h3 style={{ margin: 0 }}>📊 Payment Distribution</h3>
-                            <button onClick={() => setViewingBreakdown(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#64748b" }}><X size={20} /></button>
+                    <div className="parent-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: "460px", width: "92%", padding: 0, overflow: "hidden", borderRadius: "16px" }}>
+                        {/* Modal Header */}
+                        <div style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)", padding: "16px 20px", color: "#fff" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <h3 style={{ margin: 0, fontSize: "1.1rem" }}>💳 Payment Distribution</h3>
+                                <button onClick={() => setViewingBreakdown(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", opacity: 0.8 }}><X size={20} /></button>
+                            </div>
+                            <div style={{ marginTop: 6, fontSize: "0.8rem", opacity: 0.85, display: "flex", gap: 16 }}>
+                                <span>Receipt: <strong>{viewingBreakdown.receiptNo}</strong></span>
+                                <span>Date: <strong>{viewingBreakdown.paidAt ? new Date(viewingBreakdown.paidAt).toLocaleDateString("en-IN") : "—"}</strong></span>
+                            </div>
                         </div>
 
-                        <div style={{ background: "#f8fafc", borderRadius: "10px", padding: "16px", border: "1px solid #e2e8f0" }}>
-                            <div style={{ fontSize: "0.85rem", color: "#64748b", marginBottom: "12px", display: "flex", justifyContent: "space-between" }}>
-                                <span>Receipt: <strong>{viewingBreakdown.receiptNo}</strong></span>
-                                <span>Date: <strong>{new Date(viewingBreakdown.paidAt).toLocaleDateString()}</strong></span>
-                            </div>
-
+                        {/* Fee Breakdown Table */}
+                        <div style={{ padding: "16px 20px" }}>
                             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
                                 <thead>
-                                    <tr style={{ borderBottom: "2px solid #e2e8f0", color: "#64748b", textAlign: "left" }}>
-                                        <th style={{ padding: "8px 0" }}>Fee Head</th>
-                                        <th style={{ padding: "8px 0", textAlign: "right" }}>Amount</th>
+                                    <tr style={{ borderBottom: "2px solid #e2e8f0" }}>
+                                        <th style={{ padding: "8px 0", textAlign: "left", color: "#64748b", fontWeight: 600 }}>Fee Head</th>
+                                        <th style={{ padding: "8px 0", textAlign: "right", color: "#64748b", fontWeight: 600 }}>Amount</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -955,7 +958,7 @@ export default function FeesView() {
 
                                         return list.map((item, idx) => (
                                             <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                                                <td style={{ padding: "10px 0", color: "#1e293b" }}>{item.headName || item.name || item.head || "School Fee"}</td>
+                                                <td style={{ padding: "10px 0", color: "#1e293b" }}>{item.headName || item.name || "School Fee"}</td>
                                                 <td style={{ padding: "10px 0", textAlign: "right", fontWeight: 600 }}>₹{Number(item.amount || 0).toLocaleString()}</td>
                                             </tr>
                                         ));
@@ -976,25 +979,23 @@ export default function FeesView() {
                                     )}
                                 </tbody>
                                 <tfoot>
-                                    <tr style={{ borderTop: "2px solid #e2e8f0" }}>
-                                        <td style={{ padding: "12px 0", fontWeight: 700, color: "#1e293b" }}>Total Paid</td>
-                                        <td style={{ padding: "12px 0", textAlign: "right", fontWeight: 800, color: "#16a34a", fontSize: "1.1rem" }}>₹{Number(viewingBreakdown.amountPaid || viewingBreakdown.totalAmount || 0).toLocaleString()}</td>
+                                    <tr style={{ borderTop: "2px solid #e2e8f0", background: "#f0fdf4" }}>
+                                        <td style={{ padding: "12px 0", fontWeight: 700, color: "#16a34a" }}>Total Paid</td>
+                                        <td style={{ padding: "12px 0", textAlign: "right", fontWeight: 800, color: "#16a34a", fontSize: "1.15rem" }}>₹{Number(viewingBreakdown.amountPaid || viewingBreakdown.totalAmount || 0).toLocaleString()}</td>
                                     </tr>
                                 </tfoot>
                             </table>
                         </div>
 
-                        <div style={{ marginTop: "20px", display: "flex", gap: "10px" }}>
+                        {/* Footer Buttons */}
+                        <div style={{ padding: "0 20px 16px", display: "flex", gap: "10px" }}>
                             <button
-                                onClick={() => {
-                                    setViewingBreakdown(null);
-                                    handleViewReceipt(viewingBreakdown);
-                                }}
+                                onClick={() => { setViewingBreakdown(null); handleViewReceipt(viewingBreakdown); }}
                                 style={{ flex: 1, padding: "10px", borderRadius: "8px", background: "#eff6ff", color: "#3b82f6", border: "1px solid #3b82f6", fontWeight: 600, cursor: "pointer" }}
                             >
                                 View Full Receipt
                             </button>
-                            <button onClick={() => setViewingBreakdown(null)} style={{ padding: "10px 20px", borderRadius: "8px", background: "#f1f5f9", color: "#64748b", border: "none", fontWeight: 600, cursor: "pointer" }}>
+                            <button onClick={() => setViewingBreakdown(null)} style={{ padding: "10px 20px", borderRadius: "8px", background: "#f1f5f9", color: "#64748b", border: "1px solid #e2e8f0", fontWeight: 600, cursor: "pointer" }}>
                                 Close
                             </button>
                         </div>

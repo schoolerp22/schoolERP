@@ -10,7 +10,7 @@ import parentReducer from "../feature/parent/parentSlice";
 const logger = (store) => (next) => (action) => {
   console.log("ACTION ===>", action);
   return next(action);
-};
+};    
 
 export const store = configureStore({
   reducer: {

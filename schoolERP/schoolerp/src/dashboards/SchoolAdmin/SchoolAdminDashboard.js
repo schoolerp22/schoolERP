@@ -22,6 +22,7 @@ import AdminChatView from '../../components/admin/AdminChatView/AdminChatView';
 import FeeManagementView from '../../components/admin/FeeManagement/FeeManagementView';
 import SchoolSettingsView from '../../components/admin/SchoolSettings/SchoolSettingsView';
 import ParentManagementView from '../../components/admin/ParentManagement/ParentManagementView';
+import ExamSessionManagement from '../../components/admin/MarkingSchemeManagement/ExamSessionManagement';
 
 // Redux actions
 import {
@@ -372,6 +373,8 @@ export default function SchoolAdminDashboard() {
         return <FeeManagementView />;
       case 'school-settings':
         return <SchoolSettingsView />;
+      case 'exam-sessions':
+        return <ExamSessionManagement />;
       default:
         return (
           <DashboardView

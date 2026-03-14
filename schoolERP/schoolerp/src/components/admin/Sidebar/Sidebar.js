@@ -30,6 +30,7 @@ const Sidebar = ({ currentView, onViewChange, sidebarOpen, setSidebarOpen }) => 
         { id: 'students', icon: Users, label: 'Students' },
         { id: 'parents', icon: Heart, label: 'Parents' },
         { id: 'school-chat', icon: MessageSquare, label: 'School Communications' },
+        { id: 'exam-sessions', icon: BookOpen, label: 'Exam Sessions' },
         { id: 'marking-schemes', icon: BookOpen, label: 'Marking Schemes' },
         { id: 'attendance-backlog', icon: Calendar, label: 'Student Backlog' },
         { id: 'fee-management', icon: IndianRupee, label: 'Fee Management' },

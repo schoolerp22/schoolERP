@@ -44,13 +44,13 @@ const findUser = async (db, loginId, role) => {
   };
 
   if (role === 'student') {
-    const $or = [{ "creds.id": id }, { admission_no: id }, { "personal_details.email": idRegex }];
+    const $or = [{ admission_no: id }, { "personal_details.email": idRegex }];
     if (isNumeric) $or.push({ admission_no: idAsNum });
     return await checkCol("student", "students", { $or }, "student");
   }
 
   if (role === 'teacher') {
-    const $or = [{ "creds.id": id }, { teacher_id: id }, { "personal_details.email": idRegex }];
+    const $or = [{ teacher_id: id }, { "personal_details.email": idRegex }];
     if (isNumeric) $or.push({ teacher_id: idAsNum });
     return await checkCol("teacher", "teachers", { $or }, "teacher");
   }
@@ -98,11 +98,11 @@ const findUser = async (db, loginId, role) => {
     if (found) return { user: found, role: found.role || "schoolAdmin", collection: "admin" };
 
     // Teacher
-    found = await db.collection("teachers").findOne({ $or: [{ "personal_details.email": idRegex }, { teacher_id: id }, { "creds.id": id }, ...(isNumeric ? [{ teacher_id: idAsNum }] : [])] });
+    found = await db.collection("teachers").findOne({ $or: [{ "personal_details.email": idRegex }, { teacher_id: id }, ...(isNumeric ? [{ teacher_id: idAsNum }] : [])] });
     if (found) return { user: found, role: "teacher", collection: "teachers" };
 
     // Student
-    found = await db.collection("student").findOne({ $or: [{ "personal_details.email": idRegex }, admissionNoQuery, { "creds.id": id }] });
+    found = await db.collection("student").findOne({ $or: [{ "personal_details.email": idRegex }, admissionNoQuery] });
     if (found) return { user: found, role: "student", collection: "student" };
 
     // Parent

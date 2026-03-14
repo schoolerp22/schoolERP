@@ -1336,150 +1336,6 @@ router.get("/:teacherId/timetable/:classSection", async (req, res) => {
   }
 });
 
-// @route   POST /api/teacher/:teacherId/results/upload
-// @desc    Upload or update student results
-// @route   POST /api/teacher/:teacherId/results/upload
-// @desc    Upload or update student results (to 'results' collection)
-// @route   POST /api/teacher/:teacherId/results/upload
-// @desc    Upload or update student results (to 'results' collection)
-router.post("/:teacherId/results/upload", async (req, res) => {
-  try {
-    const db = getDB(req);
-    const { exam_id, subject, class: classNum, section, academic_year, auto_publish, students_marks } = req.body;
-
-    // Validate
-    if (!exam_id || !subject || !classNum || !section || !students_marks) {
-      return res.status(400).json({ message: "Missing required fields" });
-    }
-
-    // Get marking scheme to calculate maximum marks and grades
-    // Try both number and string for class
-    let scheme = await db.collection("marking_schemes").findOne({
-      class: classNum,
-      academic_year: academic_year || "2024-25"
-    });
-
-    if (!scheme) {
-      // try converting class to number if it was string, or vice versa
-      const altClass = isNaN(Number(classNum)) ? Number(classNum) : String(classNum);
-      scheme = await db.collection("marking_schemes").findOne({
-        class: altClass,
-        academic_year: academic_year || "2024-25"
-      });
-    }
-
-    if (!scheme) {
-      return res.status(404).json({ message: "Marking scheme not found for this class/year" });
-    }
-
-    // Process each student's marks and prepare bulk operations for 'results' collection
-    const bulkOps = students_marks.map(studentMark => {
-      const { admission_no, marks } = studentMark;
-
-      // Transform frontend marks structure { componentId: { obtained: X, absent: Y } }
-      // to what we want to store.
-      const processedMarks = {};
-      let totalObtained = 0;
-      let totalMax = 0;
-
-      Object.entries(marks).forEach(([compId, data]) => {
-        const obtained = Number(data.obtained) || 0;
-        const isAbsent = data.absent === true;
-
-        // Find component in scheme to get max marks (case-insensitive check)
-        const schemeComponent = scheme.components.find(c =>
-          c.component_id.toLowerCase() === compId.toLowerCase() ||
-          c.name.toLowerCase() === compId.toLowerCase()
-        );
-
-        let maxMarks = 0;
-        if (schemeComponent) {
-          maxMarks = schemeComponent.max_marks;
-        } else {
-          // Fallback: If not in scheme, maybe frontend sent it? Or default to 0.
-          // Let's create a warning log
-          console.warn(`Component ${compId} not found in scheme for class ${classNum}`);
-        }
-
-        processedMarks[compId] = {
-          obtained: isAbsent ? 0 : obtained,
-          absent: isAbsent,
-          max: maxMarks // Store max marks for this component
-        };
-
-        if (!isAbsent) totalObtained += obtained;
-        totalMax += maxMarks;
-      });
-
-      // Calculate Percentage and Grade
-      const percentage = totalMax > 0 ? (totalObtained / totalMax) * 100 : 0;
-
-      const gradeInfo = scheme.grading.grades.find(
-        g => percentage >= g.min && percentage <= g.max
-      ) || { grade: "N/A", remarks: "N/A" };
-
-      const filter = {
-        admission_no: admission_no,
-        exam_id: exam_id,
-        subject: subject,
-        academic_year: academic_year || "2024-25"
-      };
-
-      // Debug log
-      console.log(`Processing result for ${admission_no}:`, {
-        totalObtained, totalMax, percentage, grade: gradeInfo.grade
-      });
-
-      const updateDoc = {
-        $set: {
-          class: classNum,
-          section: section,
-          marks: processedMarks,
-          total_obtained: totalObtained,
-          total_max: totalMax,
-          percentage: parseFloat(percentage.toFixed(2)),
-          grade: gradeInfo.grade,
-          remarks: gradeInfo.remarks,
-          status: auto_publish ? "Published" : "Draft",
-          is_published: auto_publish || false,
-          published_at: auto_publish ? new Date() : null,
-          uploaded_at: new Date(),
-          uploaded_by: {
-            teacher_id: req.params.teacherId
-          }
-        }
-      };
-
-      return {
-        updateOne: {
-          filter: filter,
-          update: updateDoc,
-          upsert: true
-        }
-      };
-    });
-
-    if (bulkOps.length > 0) {
-      const result = await db.collection("results").bulkWrite(bulkOps);
-
-      // Update analytics asynchronously
-      updateStudentAnalytics(db, students_marks.map(s => s.admission_no), academic_year || "2024-25");
-
-      res.json({
-        message: "Results uploaded successfully",
-        modified: result.modifiedCount + result.upsertedCount,
-        inserted: result.upsertedCount
-      });
-    } else {
-      res.json({ message: "No data to update" });
-    }
-
-  } catch (error) {
-    console.error("Results Upload Error:", error);
-    res.status(500).json({ message: error.message });
-  }
-});
-
 
 
 // ========== HELPER FUNCTIONS ==========
@@ -1491,7 +1347,8 @@ async function updateStudentAnalytics(db, admissionNos, academicYear) {
     for (const admissionNo of admissionNos) {
       const results = await db.collection("results").find({
         admission_no: admissionNo,
-        academic_year: academicYear
+        academic_year: academicYear,
+        is_published: true // Only factor in published grades
       }).toArray();
 
       console.log(`Found ${results.length} results for ${admissionNo}`);
@@ -1582,7 +1439,14 @@ async function updateStudentAnalytics(db, admissionNos, academicYear) {
 
       let overallGrade = "N/A";
       if (scheme) {
-        const gradeInfo = scheme.grading.grades.find(
+        let gradesArray = [];
+        if (scheme.grading && scheme.grading.grades) {
+          gradesArray = scheme.grading.grades;
+        } else if (scheme.grading_system && scheme.grading_system.grade_ranges) {
+          gradesArray = scheme.grading_system.grade_ranges;
+        }
+
+        const gradeInfo = gradesArray.find(
           g => avgPercentage >= g.min && avgPercentage <= g.max
         );
         overallGrade = gradeInfo ? gradeInfo.grade : "N/A";

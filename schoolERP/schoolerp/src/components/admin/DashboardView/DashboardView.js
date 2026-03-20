@@ -14,7 +14,7 @@ const DashboardView = ({ dashboardStats, onViewChange }) => {
         <div className="space-y-6 sm:space-y-6">
             {/* Statistics Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 px-4 sm:px-0">
-                <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200">
+                <div className="bg-white p-4 md:p-6 rounded-3xl shadow-md shadow-slate-200/50 border border-slate-200">
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-gray-600 text-sm">Total Teachers</p>
@@ -26,7 +26,7 @@ const DashboardView = ({ dashboardStats, onViewChange }) => {
                     </div>
                 </div>
 
-                <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200">
+                <div className="bg-white p-4 md:p-6 rounded-3xl shadow-md shadow-slate-200/50 border border-slate-200">
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-gray-600 text-sm">Total Students</p>
@@ -38,7 +38,7 @@ const DashboardView = ({ dashboardStats, onViewChange }) => {
                     </div>
                 </div>
 
-                <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200">
+                <div className="bg-white p-4 md:p-6 rounded-3xl shadow-md shadow-slate-200/50 border border-slate-200">
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-gray-600 text-sm">Active Teachers</p>
@@ -50,7 +50,7 @@ const DashboardView = ({ dashboardStats, onViewChange }) => {
                     </div>
                 </div>
 
-                <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200">
+                <div className="bg-white p-4 md:p-6 rounded-3xl shadow-md shadow-slate-200/50 border border-slate-200">
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-gray-600 text-sm">Total Classes</p>
@@ -65,7 +65,7 @@ const DashboardView = ({ dashboardStats, onViewChange }) => {
 
             {/* Secondary Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 px-4 sm:px-0">
-                <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200">
+                <div className="bg-white p-4 md:p-6 rounded-3xl shadow-md shadow-slate-200/50 border border-slate-200">
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-gray-600 text-sm">Student Attendance</p>
@@ -77,7 +77,7 @@ const DashboardView = ({ dashboardStats, onViewChange }) => {
                     </div>
                 </div>
 
-                <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200">
+                <div className="bg-white p-4 md:p-6 rounded-3xl shadow-md shadow-slate-200/50 border border-slate-200">
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-gray-600 text-sm">Teacher Attendance</p>
@@ -89,7 +89,7 @@ const DashboardView = ({ dashboardStats, onViewChange }) => {
                     </div>
                 </div>
 
-                <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200">
+                <div className="bg-white p-4 md:p-6 rounded-3xl shadow-md shadow-slate-200/50 border border-slate-200">
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-gray-600 text-sm">Active Homework</p>
@@ -116,7 +116,7 @@ const DashboardView = ({ dashboardStats, onViewChange }) => {
 
             {/* Quick Actions */}
             <div className="px-4 sm:px-0 mb-4 sm:mb-0">
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-6">
+                <div className="bg-white rounded-[32px] shadow-md shadow-slate-200/50 border border-slate-200 p-8">
                     <h3 className="text-lg font-bold text-gray-900 mb-4">Quick Actions</h3>
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                         <button

@@ -28,6 +28,9 @@ import {
   getDashboardStats,
   getLeaveRequests,
   getAllLeaveRequests,
+  getAnnouncements,
+  getHomework,
+  getAttendanceSummary,
   clearError,
   clearSuccess
 } from '../../feature/teachers/teacherSlice';
@@ -41,6 +44,9 @@ const TeacherDashboard = () => {
     selectedClassStudents,
     dashboardStats,
     leaveRequests,
+    announcements,
+    homework,
+    attendanceSummary,
 
     loadings,
 
@@ -51,6 +57,7 @@ const TeacherDashboard = () => {
   const [currentView, setCurrentView] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedClass, setSelectedClass] = useState('');
+  const [attendanceRange, setAttendanceRange] = useState('weekly');
   const [editSession, setEditSession] = useState(null);
 
   const teacherId = user?.teacher_id;
@@ -69,6 +76,8 @@ const TeacherDashboard = () => {
       dispatch(getDashboardStats(teacherId));
       dispatch(getLeaveRequests(teacherId));
       dispatch(getAllLeaveRequests(teacherId));
+      dispatch(getAnnouncements(teacherId));
+      dispatch(getHomework(teacherId));
     } else {
       console.log("Skipping dispatch - teacherId is missing");
     }
@@ -85,8 +94,9 @@ const TeacherDashboard = () => {
   useEffect(() => {
     if (selectedClass) {
       dispatch(getStudentsByClass({ teacherId, classSection: selectedClass }));
+      dispatch(getAttendanceSummary({ teacherId, classSection: selectedClass, range: attendanceRange }));
     }
-  }, [selectedClass, dispatch, teacherId]);
+  }, [selectedClass, attendanceRange, dispatch, teacherId]);
 
   useEffect(() => {
     if (success) {
@@ -120,8 +130,15 @@ const TeacherDashboard = () => {
       case 'dashboard':
         return (
           <DashboardView
+            profile={profile}
             dashboardStats={dashboardStats}
             onViewChange={setCurrentView}
+            announcements={announcements}
+            homework={homework}
+            attendanceSummary={attendanceSummary}
+            attendanceRange={attendanceRange}
+            setAttendanceRange={setAttendanceRange}
+            loadings={loadings}
           />
         );
       case 'students':
@@ -155,6 +172,7 @@ const TeacherDashboard = () => {
             selectedClass={selectedClass}
             teacherId={teacherId}
             profile={profile}
+            students={selectedClassStudents}
           />
         );
       case 'results':
@@ -212,8 +230,15 @@ const TeacherDashboard = () => {
       default:
         return (
           <DashboardView
+            profile={profile}
             dashboardStats={dashboardStats}
             onViewChange={setCurrentView}
+            announcements={announcements}
+            homework={homework}
+            attendanceSummary={attendanceSummary}
+            attendanceRange={attendanceRange}
+            setAttendanceRange={setAttendanceRange}
+            loadings={loadings}
           />
         );
     }

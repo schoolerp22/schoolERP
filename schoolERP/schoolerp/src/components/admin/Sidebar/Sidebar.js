@@ -36,6 +36,7 @@ const Sidebar = ({ currentView, onViewChange, sidebarOpen, setSidebarOpen }) => 
         { id: 'fee-management', icon: IndianRupee, label: 'Fee Management' },
         { id: 'reports', icon: FileText, label: 'Reports' },
         { id: 'analytics', icon: BarChart3, label: 'Analytics' },
+        { id: 'holiday-management', icon: Calendar, label: 'Holiday Management' },
         { id: 'school-settings', icon: Settings, label: 'School Settings' },
     ];
 

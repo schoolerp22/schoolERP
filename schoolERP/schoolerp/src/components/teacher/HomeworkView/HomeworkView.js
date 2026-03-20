@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { assignHomework, getHomework, editHomework, getHomeworkSubmissions } from '../../../feature/teachers/teacherSlice';
-import { Download, Edit, Users, X, Paperclip } from 'lucide-react';
+import { Download, Edit, Users, X, Paperclip, CheckCircle, Clock } from 'lucide-react';
 
-const HomeworkView = ({ selectedClass, teacherId, profile }) => {
+const HomeworkView = ({ selectedClass, teacherId, profile, students }) => {
   const dispatch = useDispatch();
   const { loading, homework, submissions } = useSelector((state) => state.teacher);
   const [editingId, setEditingId] = useState(null);
-  const [viewingSubmissionsId, setViewingSubmissionsId] = useState(null);
 
   useEffect(() => {
     if (teacherId) {
@@ -38,8 +37,6 @@ const HomeworkView = ({ selectedClass, teacherId, profile }) => {
   };
 
   const handleSubmissionsClick = (hwId) => {
-    setViewingSubmissionsId(hwId);
-    console.log('viewingSubmissionsId', viewingSubmissionsId)
     dispatch(getHomeworkSubmissions({ teacherId, homeworkId: hwId }));
     setShowSubmissionsModal(true);
   };
@@ -75,11 +72,11 @@ const HomeworkView = ({ selectedClass, teacherId, profile }) => {
     setHomeworkForm({ subject: '', topic: '', description: '', dueDate: '', attachment: null });
   };
 
-  const API_Base = process.env.REACT_APP_API_URL || ''; // Prevent localhost fallback in prod
+  const API_Base = process.env.REACT_APP_API_URL || '';
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      <div className="bg-transparent sm:bg-white sm:rounded-xl sm:shadow-sm sm:border sm:p-6">
+    <div className="space-y-4 sm:space-y-8 p-1">
+      <div className="bg-white rounded-[32px] shadow-md shadow-slate-200/50 border border-slate-200 p-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2 sm:mb-4 px-4 sm:px-0">
           <h3 className="text-lg font-bold text-gray-900">Homework Management</h3>
           <button
@@ -101,15 +98,29 @@ const HomeworkView = ({ selectedClass, teacherId, profile }) => {
         ) : (
           <div className="space-y-3 sm:space-y-4 px-4 sm:px-0">
             {homework.map((hw) => (
-              <div key={hw._id} className="bg-white border border-gray-100 sm:border-gray-200 rounded-2xl p-4 sm:p-5 shadow-sm hover:shadow-md transition-shadow">
+              <div key={hw._id} className="bg-white border border-slate-200 rounded-[28px] p-6 shadow-sm hover:shadow-xl hover:shadow-indigo-100/40 transition-all duration-300 group">
                 <div className="flex justify-between items-start gap-4">
                   <div className="flex-1">
                     <h4 className="font-bold text-[15px] sm:text-lg text-gray-900 leading-tight">
                       {hw.subject} <span className="text-gray-300 mx-1">|</span> <span className="text-gray-700 font-semibold">{hw.topic}</span>
                     </h4>
-                    <p className="text-[11px] sm:text-sm font-medium text-gray-500 mt-1 flex items-center gap-1">
-                      <span className="text-gray-400">Due:</span> {new Date(hw.due_date).toLocaleDateString()}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2 mt-1">
+                      <p className="text-[11px] sm:text-sm font-medium text-indigo-600 flex items-center gap-1">
+                        <span className="text-gray-400">Created:</span> {new Date(hw.assigned_date).toLocaleDateString()}
+                      </p>
+                      <span className="hidden sm:inline text-gray-300">|</span>
+                      <p className="text-[11px] sm:text-sm font-medium text-rose-500 flex items-center gap-1">
+                        <span className="text-gray-400">Due:</span> {new Date(hw.due_date).toLocaleDateString()}
+                      </p>
+                      <span className="hidden sm:inline text-gray-300">|</span>
+                      <div className="flex items-center gap-1 px-2 py-0.5 bg-indigo-50 rounded-lg">
+                        <span className="text-[11px] sm:text-sm font-bold text-indigo-700">{hw.submissionCount || 0}</span>
+                        <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-tighter">Submitted</span>
+                        <span className="text-indigo-200">/</span>
+                        <span className="text-[11px] sm:text-sm font-bold text-gray-500">{(hw.totalStudents || 0) - (hw.submissionCount || 0)}</span>
+                        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">Pending</span>
+                      </div>
+                    </div>
                   </div>
                   <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 shrink-0">
                     <button
@@ -153,8 +164,8 @@ const HomeworkView = ({ selectedClass, teacherId, profile }) => {
 
       {/* Assignment Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 sm:p-4 animate-in fade-in duration-200 block">
-          <div className="bg-white rounded-t-2xl sm:rounded-xl p-6 w-full max-w-lg shadow-2xl animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-[32px] p-8 w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-300">
             <h3 className="text-xl font-bold mb-6 text-gray-900 border-b border-gray-100 pb-3">
               {editingId ? 'Edit Homework' : 'Assign Homework'}
             </h3>
@@ -238,42 +249,68 @@ const HomeworkView = ({ selectedClass, teacherId, profile }) => {
 
       {/* Submissions Modal */}
       {showSubmissionsModal && (
-        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 sm:p-4 animate-in fade-in duration-200 block">
-          <div className="bg-white rounded-t-2xl sm:rounded-xl w-full max-w-2xl max-h-[85vh] sm:max-h-[80vh] flex flex-col shadow-2xl animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-[32px] w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-300">
             <div className="p-5 sm:p-6 border-b border-gray-100 flex justify-between items-center bg-white rounded-t-2xl sm:rounded-t-xl sticky top-0 z-10">
-              <h3 className="text-lg sm:text-xl font-bold text-gray-900">Student Submissions</h3>
+              <div>
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900">Submission Report</h3>
+                <p className="text-xs text-gray-500 font-medium">({submissions.length} / {students?.length || 0}) Students Submitted</p>
+              </div>
               <button onClick={() => setShowSubmissionsModal(false)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
                 <X size={20} />
               </button>
             </div>
 
-            <div className="p-6 overflow-y-auto flex-1">
+            <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
               {loading ? (
                 <div className="flex justify-center py-10"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div></div>
-              ) : submissions.length === 0 ? (
-                <p className="text-center text-gray-500 py-10">No submissions yet.</p>
+              ) : !students || students.length === 0 ? (
+                <div className="text-center py-10">
+                  <span className="text-gray-400 block mb-2">No students found in this class view list.</span>
+                  <span className="text-xs text-gray-500">(Try selecting a class in the header)</span>
+                </div>
               ) : (
                 <div className="space-y-3">
-                  {submissions.map((sub) => (
-                    <div key={sub._id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
-                      <div>
-                        <p className="font-semibold text-gray-800">{sub.student_name}</p>
-                        <p className="text-sm text-gray-500">Submitted: {new Date(sub.submitted_at).toLocaleDateString()}</p>
-                        {sub.note && <p className="text-sm text-gray-600 mt-1 italic">"{sub.note}"</p>}
-                      </div>
+                  {students.map((student) => {
+                    const submission = submissions.find(s => s.admission_no === student.admission_no);
+                    const isSubmitted = !!submission;
 
-                      {sub.attachment && (
-                        <a
-                          href={`${API_Base}${sub.attachment}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 text-sm font-medium"
-                        >
-                          <Download size={16} /> Download
-                        </a>
-                      )}
-                    </div>
-                  ))}
+                    return (
+                      <div key={student._id} className={`flex items-center justify-between p-4 border rounded-xl transition-all ${isSubmitted ? 'bg-emerald-50/30 border-emerald-100' : 'bg-gray-50/30 border-gray-100'}`}>
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-lg ${isSubmitted ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                            {isSubmitted ? <CheckCircle size={16} /> : <Clock size={16} />}
+                          </div>
+                          <div>
+                            <p className="font-bold text-gray-800 text-sm">{student.personal_details.first_name} {student.personal_details.last_name}</p>
+                            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Roll: {student.academic?.roll_no || 'N/A'}</p>
+                          </div>
+                        </div>
+
+                        {isSubmitted ? (
+                          <div className="flex items-center gap-3">
+                            <div className="text-right hidden sm:block">
+                              <p className="text-[10px] font-bold text-emerald-600 uppercase">Submitted</p>
+                              <p className="text-[10px] text-gray-400">{new Date(submission.submitted_at).toLocaleDateString()}</p>
+                            </div>
+                            {submission.attachment && (
+                              <a
+                                href={`${API_Base}${submission.attachment}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-2 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-indigo-50 hover:text-indigo-600 transition-colors shadow-sm"
+                                title="Download Submission"
+                              >
+                                <Download size={16} />
+                              </a>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-[10px] font-bold text-amber-600 uppercase bg-amber-50 px-2 py-1 rounded">Pending</span>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

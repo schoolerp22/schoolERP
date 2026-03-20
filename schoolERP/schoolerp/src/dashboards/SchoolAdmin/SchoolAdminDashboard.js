@@ -23,6 +23,7 @@ import FeeManagementView from '../../components/admin/FeeManagement/FeeManagemen
 import SchoolSettingsView from '../../components/admin/SchoolSettings/SchoolSettingsView';
 import ParentManagementView from '../../components/admin/ParentManagement/ParentManagementView';
 import ExamSessionManagement from '../../components/admin/MarkingSchemeManagement/ExamSessionManagement';
+import HolidayManagementView from '../../components/admin/HolidayManagement/HolidayManagementView';
 
 // Redux actions
 import {
@@ -375,6 +376,8 @@ export default function SchoolAdminDashboard() {
         return <SchoolSettingsView />;
       case 'exam-sessions':
         return <ExamSessionManagement />;
+      case 'holiday-management':
+        return <HolidayManagementView />;
       default:
         return (
           <DashboardView

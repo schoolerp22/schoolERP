@@ -1,6 +1,7 @@
 import express from "express";
 import { ObjectId } from "mongodb";
 import bcrypt from "bcryptjs";
+import { checkIsHoliday } from "../utils/holidayUtils.js";
 
 const router = express.Router();
 
@@ -260,6 +261,17 @@ router.post("/:teacherId/self-attendance", async (req, res) => {
       return res.status(403).json({ message: "Cannot mark attendance for future dates." });
     }
 
+    // NEW: Block marking on Holidays
+    const holidaysDB = await db.collection("holidays").find({}).toArray();
+    const holiday = checkIsHoliday(date, holidaysDB);
+    if (holiday) {
+      return res.status(403).json({
+        message: `Cannot mark attendance on a holiday: ${holiday.name}`,
+        isHoliday: true,
+        holiday
+      });
+    }
+
     // 2. Check Backlog for past dates
     if (localDate < today) {
       const backlog = await db.collection("teacher_attendance_backlog").findOne({
@@ -415,6 +427,17 @@ router.post("/:teacherId/attendance", async (req, res) => {
       return res.status(403).json({ message: "Cannot mark attendance for future dates." });
     }
 
+    // 1.5 NEW: Block marking on Holidays
+    const holidays = await db.collection("holidays").find({}).toArray();
+    const holiday = checkIsHoliday(date, holidays);
+    if (holiday) {
+      return res.status(403).json({
+        message: `Cannot mark attendance on a holiday: ${holiday.name}`,
+        isHoliday: true,
+        holiday
+      });
+    }
+
     // 2. For past dates, check if backlog is open
     if (localDate < today) {
       // Check for open backlog window
@@ -566,6 +589,18 @@ router.get("/:teacherId/backlog-status/:date/:classSection", async (req, res) =>
       });
     }
 
+    // NEW: Holiday check
+    const holidays = await db.collection("holidays").find({}).toArray();
+    const holiday = checkIsHoliday(date, holidays);
+    if (holiday) {
+      return res.json({
+        allowed: false,
+        reason: `Holiday: ${holiday.name}`,
+        isHoliday: true,
+        holiday
+      });
+    }
+
     // Today is always allowed
     if (localDate.getTime() === today.getTime()) {
       return res.json({
@@ -669,9 +704,12 @@ router.get("/:teacherId/attendance-summary", async (req, res) => {
       ...dateFilter
     }).toArray();
 
-    // 3. Calculate "Total School Days" (Count unique dates)
-    const uniqueDates = new Set(attendanceRecords.map(a => new Date(a.date).toDateString()));
-    const totalSchoolDays = uniqueDates.size;
+    // NEW: Get Holidays for accurate stats
+    const holidaysDB = await db.collection("holidays").find({}).toArray();
+
+    // 3. Calculate "Total School Days" (Count unique dates, excluding holidays)
+    const uniqueDates = Array.from(new Set(attendanceRecords.map(a => new Date(a.date).toDateString())));
+    const totalSchoolDays = uniqueDates.filter(d => !checkIsHoliday(new Date(d), holidaysDB)).length;
 
     if (totalSchoolDays === 0) {
       return res.json({
@@ -841,12 +879,36 @@ router.put("/:teacherId/homework/:homeworkId", upload.single('attachment'), asyn
 router.get("/:teacherId/homework", async (req, res) => {
   try {
     const db = getDB(req);
+    const teacherId = req.params.teacherId;
 
     const homework = await db.collection("homework").find({
-      teacher_id: req.params.teacherId
+      teacher_id: teacherId
     }).sort({ assigned_date: -1 }).toArray();
 
-    res.json(homework);
+    // Enrich with counts
+    const enrichedHomework = await Promise.all(homework.map(async (hw) => {
+      // 1. Count submissions
+      const submissionCount = await db.collection("homework_submissions").countDocuments({
+        homework_id: hw._id
+      });
+
+      // 2. Count total students in this class section
+      const [classNum, section] = hw.class_section.split("-");
+      const classVal = isNaN(Number(classNum)) ? classNum : Number(classNum);
+
+      const totalStudents = await db.collection("student").countDocuments({
+        "academic.current_class": classVal,
+        "academic.section": section
+      });
+
+      return {
+        ...hw,
+        submissionCount,
+        totalStudents
+      };
+    }));
+
+    res.json(enrichedHomework);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -1154,12 +1216,21 @@ router.get("/:teacherId/dashboard-stats", async (req, res) => {
       due_date: { $gte: new Date() }
     });
 
-    // Today's attendance marked
+    // Today's attendance marked (for students)
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
+
     const attendanceMarked = await db.collection("attendance").countDocuments({
-      marked_by: req.params.teacherId,
-      date: { $gte: today }
+      marked_by_id: req.params.teacherId,
+      date: { $gte: today, $lte: endOfToday }
+    });
+
+    // Teacher's own attendance for today
+    const selfAttendance = await db.collection("teacher_attendance").findOne({
+      teacher_id: req.params.teacherId,
+      date: { $gte: today, $lte: endOfToday }
     });
 
     res.json({
@@ -1167,6 +1238,7 @@ router.get("/:teacherId/dashboard-stats", async (req, res) => {
       pendingLeaves,
       activeHomework,
       attendanceMarked,
+      selfAttendanceStatus: selfAttendance ? selfAttendance.status : "Pending",
       assignedClasses: teacher.assigned_classes.length
     });
   } catch (error) {

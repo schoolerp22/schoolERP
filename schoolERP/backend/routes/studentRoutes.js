@@ -124,6 +124,23 @@ router.post("/:studentId/homework/:homeworkId/submit", upload.single('attachment
     const student = await getStudent(db, studentId);
     if (!student) return res.status(404).json({ message: "Student not found" });
 
+    // Due date check
+    const homework = await db.collection("homework").findOne({ _id: new ObjectId(homeworkId) });
+    if (!homework) return res.status(404).json({ message: "Homework not found" });
+
+    const now = new Date();
+    const dueDate = new Date(homework.due_date);
+    
+    // Allow submission until the end of the due day (23:59:59)
+    dueDate.setHours(23, 59, 59, 999);
+
+    if (now > dueDate) {
+      return res.status(403).json({ 
+        message: "Submission closed. The due date for this homework has passed.",
+        dueDate: homework.due_date
+      });
+    }
+
     const submission = {
       homework_id: new ObjectId(homeworkId),
       student_id: student._id,

@@ -1,6 +1,7 @@
 import express from "express";
 import { ObjectId } from "mongodb";
 import bcrypt from "bcryptjs";
+import { checkIsHoliday } from "../utils/holidayUtils.js";
 
 const router = express.Router();
 const getDB = (req) => req.app.locals.db;
@@ -259,6 +260,10 @@ router.get("/:adminId/teachers-attendance", async (req, res) => {
         const startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
         const endOfDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
 
+        // NEW: Check if today is a holiday
+        const holidaysDB = await db.collection("holidays").find({}).toArray();
+        const holidayToday = checkIsHoliday(date, holidaysDB);
+
         // Get all teachers
         const teachers = await db.collection("teachers").find({}, { projection: { teacher_id: 1, personal_details: 1, assigned_classes: 1 } }).toArray();
 
@@ -284,6 +289,8 @@ router.get("/:adminId/teachers-attendance", async (req, res) => {
                 marked_at: record ? record.marked_at : null,
                 is_edited: record ? record.is_edited : false,
                 edit_note: record ? record.edit_note : null,
+                is_holiday: !!holidayToday,
+                holiday_name: holidayToday ? holidayToday.name : null
             };
         });
 
@@ -793,6 +800,7 @@ router.get("/:adminId/reports/attendance", async (req, res) => {
         }
 
         const attendance = await db.collection("attendance").find(dateQuery).toArray();
+        const holidaysDB = await db.collection("holidays").find({}).toArray();
 
         const stats = {
             total_records: attendance.length,
@@ -1526,6 +1534,73 @@ router.post("/:adminId/teacher-leaves/:leaveId/approve", async (req, res) => {
         }
 
         res.json({ message: `Teacher leave request ${status}` });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// ==================== HOLIDAY MANAGEMENT ====================
+
+/**
+ * @route   GET /api/admin/:adminId/holidays
+ * @desc    Get all manual holidays
+ */
+router.get("/:adminId/holidays", async (req, res) => {
+    try {
+        const db = getDB(req);
+        const holidays = await db.collection("holidays").find({}).sort({ start_date: 1 }).toArray();
+        res.json(holidays);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+/**
+ * @route   POST /api/admin/:adminId/holidays
+ * @desc    Add a new holiday
+ */
+router.post("/:adminId/holidays", async (req, res) => {
+    try {
+        const db = getDB(req);
+        const { name, start_date, end_date, type, description } = req.body;
+
+        if (!name || !start_date) {
+            return res.status(400).json({ message: "Name and start date are required" });
+        }
+
+        const holiday = {
+            name,
+            start_date: new Date(start_date),
+            end_date: end_date ? new Date(end_date) : new Date(start_date),
+            type: type || "General",
+            description: description || "",
+            created_at: new Date(),
+            created_by: req.params.adminId
+        };
+
+        const result = await db.collection("holidays").insertOne(holiday);
+        res.status(201).json({ message: "Holiday added successfully", holidayId: result.insertedId });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+/**
+ * @route   DELETE /api/admin/:adminId/holidays/:holidayId
+ * @desc    Delete a holiday
+ */
+router.delete("/:adminId/holidays/:holidayId", async (req, res) => {
+    try {
+        const db = getDB(req);
+        const { holidayId } = req.params;
+
+        const result = await db.collection("holidays").deleteOne({ _id: new ObjectId(holidayId) });
+
+        if (result.deletedCount === 0) {
+            return res.status(404).json({ message: "Holiday not found" });
+        }
+
+        res.json({ message: "Holiday deleted successfully" });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

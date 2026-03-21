@@ -33,6 +33,7 @@ const Sidebar = ({ currentView, onViewChange, sidebarOpen, setSidebarOpen }) => 
         { id: 'exam-sessions', icon: BookOpen, label: 'Exam Sessions' },
         { id: 'marking-schemes', icon: BookOpen, label: 'Marking Schemes' },
         { id: 'attendance-backlog', icon: Calendar, label: 'Student Backlog' },
+        { id: 'lesson-plans', icon: BookOpen, label: 'Lesson Plan Approvals' },
         { id: 'fee-management', icon: IndianRupee, label: 'Fee Management' },
         { id: 'reports', icon: FileText, label: 'Reports' },
         { id: 'analytics', icon: BarChart3, label: 'Analytics' },
@@ -119,7 +120,7 @@ const Sidebar = ({ currentView, onViewChange, sidebarOpen, setSidebarOpen }) => 
                         <div className="w-10 h-10 rounded-full bg-indigo-700 flex flex-shrink-0 items-center justify-center font-bold text-sm">
                             AD
                         </div>
-                        <div className={`flex-1 min-w-0 transition-opacity duration-300 ${sidebarOpen ? 'opacity-100' : 'md:opacity-0 hidden md:block'}`}>
+                        <div className={`flex-1 min-w-0 transition-opacity d  00 ${sidebarOpen ? 'opacity-100' : 'md:opacity-0 hidden md:block'}`}>
                             <p className="text-sm font-medium truncate">Admin User</p>
                             <p className="text-xs text-indigo-300 truncate">ADMIN-001</p>
                         </div>

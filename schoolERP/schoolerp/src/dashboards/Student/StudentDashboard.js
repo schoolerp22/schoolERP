@@ -5,6 +5,8 @@ import { Loader, Home, Calendar, BookOpen, Menu, Bell } from "lucide-react";
 import Sidebar from "../../components/student/Sidebar/Sidebar";
 import DashboardView from "../../components/student/DashboardView/DashboardView";
 import HomeworkView from "../../components/student/HomeworkView/HomeworkView";
+import SyllabusView from "../../components/student/SyllabusView/SyllabusView";
+import StudentLessonPlanView from "../../components/student/LessonPlanView/LessonPlanView";
 import AttendanceView from "../../components/student/AttendanceView/AttendanceView";
 import ExamView from "../../components/student/ExamView/ExamView";
 import FeesView from "../../components/student/FeesView/FeesView";
@@ -95,8 +97,8 @@ const StudentDashboard = () => {
     );
   }
 
-  // Show loading state
-  if (loading || !profile) {
+  // Show loading state (only for initial load)
+  if (!profile) {
     return (
       <div className="h-screen flex justify-center items-center">
         <Loader className="animate-spin text-indigo-600" size={48} />
@@ -111,6 +113,10 @@ const StudentDashboard = () => {
         return <DashboardView profile={profile} homework={homework} exams={exams} results={results} analytics={analytics} />;
       case "homework":
         return <HomeworkView homework={homework} studentId={studentId} />;
+      case "syllabus":
+        return <SyllabusView studentId={studentId} />;
+      case "lesson-plans":
+        return <StudentLessonPlanView />;
       case "attendance":
         return <AttendanceView attendance={attendance} />;
       case "exam":

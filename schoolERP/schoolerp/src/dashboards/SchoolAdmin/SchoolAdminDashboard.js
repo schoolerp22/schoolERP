@@ -24,6 +24,7 @@ import SchoolSettingsView from '../../components/admin/SchoolSettings/SchoolSett
 import ParentManagementView from '../../components/admin/ParentManagement/ParentManagementView';
 import ExamSessionManagement from '../../components/admin/MarkingSchemeManagement/ExamSessionManagement';
 import HolidayManagementView from '../../components/admin/HolidayManagement/HolidayManagementView';
+import LessonPlanApproval from '../../components/admin/LessonPlanApproval/LessonPlanApproval';
 
 // Redux actions
 import {
@@ -368,6 +369,8 @@ export default function SchoolAdminDashboard() {
         return <ParentManagementView />;
       case 'marking-schemes':
         return <MarkingSchemeManagement />;
+      case 'lesson-plans':
+        return <LessonPlanApproval />;
       case 'school-chat':
         return <AdminChatView adminId={adminId} />;
       case 'fee-management':

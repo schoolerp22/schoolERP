@@ -15,6 +15,7 @@ import accountingRoutes from './routes/accountingRoutes.js';
 import examSessionRoutes from './routes/examSessionRoutes.js';
 import schoolSettingsRoutes from './routes/schoolSettingsRoutes.js';
 import parentRoutes from './routes/parentRoutes.js';
+import lessonPlanRoutes from './routes/lessonPlanRoutes.js';
 
 dotenv.config();
 
@@ -182,6 +183,7 @@ const startServer = async () => {
     app.use("/api/chat", chatRoutes);
     app.use("/api/accounting", accountingRoutes);
     app.use("/api/parent", parentRoutes);
+    app.use("/api/lesson-plans", lessonPlanRoutes);
 
 
 

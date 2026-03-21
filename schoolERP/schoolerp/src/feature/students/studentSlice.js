@@ -171,6 +171,32 @@ export const getAnnouncements = createAsyncThunk(
   }
 );
 
+// Get Syllabus
+export const getStudentSyllabus = createAsyncThunk(
+  "student/getSyllabus",
+  async (studentId, { rejectWithValue }) => {
+    try {
+      const res = await axios.get(`${API_URL}/${studentId}/syllabus`);
+      return res.data;
+    } catch (err) {
+      return rejectWithValue(err.response?.data || err.message);
+    }
+  }
+);
+
+// Get Student Lesson Plans
+export const getStudentLessonPlans = createAsyncThunk(
+  "student/getLessonPlans",
+  async (studentId, { rejectWithValue }) => {
+    try {
+      const res = await axios.get(`${API_URL}/${studentId}/lesson-plans`);
+      return res.data;
+    } catch (err) {
+      return rejectWithValue(err.response?.data || err.message);
+    }
+  }
+);
+
 // ========== NEW RESULTS ACTIONS ==========
 
 // Get all results
@@ -278,6 +304,8 @@ const initialState = {
   transport: null,
   timetable: [],
   announcements: [],
+  syllabus: [], // Student syllabus
+  lessonPlans: [], // Student lesson plans
   leaves: [], // Student leave history
   // New results state
   results: [],
@@ -303,6 +331,8 @@ const ACTION_TO_STATE_KEY = {
   getTransport: "transport",
   getTimetable: "timetable",
   getAnnouncements: "announcements",
+  getSyllabus: "syllabus",
+  getLessonPlans: "lessonPlans",
   getResults: "results",
   getAnalytics: "analytics",
   getExamResults: "examResults",

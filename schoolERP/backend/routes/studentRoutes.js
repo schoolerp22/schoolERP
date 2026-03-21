@@ -326,7 +326,28 @@ router.get("/:studentId/announcements", async (req, res) => {
   }
 });
 
+/**
+ * GET Syllabus
+ */
+router.get("/:studentId/syllabus", async (req, res) => {
+  try {
+    const db = getDB(req);
+    const student = await getStudent(db, req.params.studentId);
+    if (!student) return res.status(404).json({ message: "Student not found" });
 
+    const syllabi = await db.collection("syllabus").find({
+      $or: [
+        { class_section: "All" },
+        { class_section: `${student.academic?.current_class || student.class}-${student.academic?.section || student.section}` }
+      ],
+      status: "Active"
+    }).sort({ created_at: -1 }).toArray();
+
+    res.json(syllabi);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
 
 // @route   POST /api/student/:studentId/leave
 // @desc    Apply for leave
@@ -404,6 +425,50 @@ router.get("/:studentId/leaves", async (req, res) => {
     });
 
     res.json(enrichedLeaves);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   GET /api/student/:studentId/lesson-plans
+// @desc    Get student's approved and completed lesson plans
+router.get("/:studentId/lesson-plans", async (req, res) => {
+  try {
+    const db = getDB(req);
+    const student = await getStudent(db, req.params.studentId);
+    if (!student) return res.status(404).json({ message: "Student not found" });
+
+    const className = student.academic?.current_class || student.class;
+    const sectionName = student.academic?.section || student.section;
+    
+    // Find class_id if mapping exists
+    const classDoc = await db.collection("classes").findOne({ 
+        className: String(className)
+    });
+
+    let query = {
+        status: "Completed",
+        approval_status: "Approved",
+        section: sectionName
+    };
+
+    if (classDoc) {
+        query.class_id = classDoc._id;
+    }
+    
+    const plans = await db.collection("lesson_plans")
+      .find(query)
+      .sort({ actual_date: -1 })
+      .toArray();
+
+    // Attach subject names
+    const subjects = await db.collection("subjects").find({}).toArray();
+    const enrichedPlans = plans.map(p => ({
+        ...p,
+        subject_name: subjects.find(s => s._id.toString() === p.subject_id?.toString())?.subject_name || p.subject_id
+    }));
+
+    res.json(enrichedPlans);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

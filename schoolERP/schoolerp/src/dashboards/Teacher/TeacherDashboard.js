@@ -9,6 +9,7 @@ import { Home, Users as UsersIcon, Calendar as CalendarIcon, Menu as MenuIcon } 
 import StudentsView from '../../components/teacher/StudentsView/StudentsView';
 import AttendanceView from '../../components/teacher/AttendanceView/AttendanceView';
 import HomeworkView from '../../components/teacher/HomeworkView/HomeworkView';
+import SyllabusView from '../../components/teacher/SyllabusView/SyllabusView';
 import AnnouncementsView from '../../components/teacher/AnnouncementsView/AnnouncementsView';
 import LeaveApproval from '../../components/teacher/LeaveApproval/LeaveApproval';
 import TimetableManagement from '../../components/teacher/TimetableManagement/TimetableManagement';
@@ -18,6 +19,7 @@ import TeacherPerformanceDashboard from '../../components/teacher/TeacherPerform
 import MyAttendanceView from '../../components/teacher/MyAttendanceView/MyAttendanceView';
 import MyLeavesView from '../../components/teacher/MyLeavesView/MyLeavesView';
 import TeacherChatView from '../../components/teacher/ClassChatView/TeacherChatView';
+import LessonPlanView from '../../components/teacher/LessonPlanView/LessonPlanView';
 import useGlobalPresence from '../../hooks/useGlobalPresence';
 import { useUnreadCount } from '../../hooks/useUnreadCount';
 
@@ -173,6 +175,22 @@ const TeacherDashboard = () => {
             teacherId={teacherId}
             profile={profile}
             students={selectedClassStudents}
+          />
+        );
+      case 'syllabus':
+        return (
+          <SyllabusView
+            selectedClass={selectedClass}
+            teacherId={teacherId}
+            profile={profile}
+          />
+        );
+      case 'lesson-plans':
+        return (
+          <LessonPlanView
+            selectedClass={selectedClass}
+            teacherId={teacherId}
+            profile={profile}
           />
         );
       case 'results':

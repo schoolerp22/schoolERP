@@ -74,6 +74,52 @@ export const useWebRTC = (userId, userName) => {
     const originalVideoTrackRef = useRef(null);
     const iceServersRef = useRef(FALLBACK_ICE);
     const pendingCandidatesRef = useRef([]); // Queue ICE candidates before remote desc is set
+    const ringtoneRef = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3'));
+
+    // Configure ringtone
+    useEffect(() => {
+        const ringtone = ringtoneRef.current;
+        ringtone.loop = true;
+        
+        // Request Notification permission
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+
+        return () => {
+            ringtone.pause();
+            ringtone.currentTime = 0;
+        };
+    }, []);
+
+    const playRingtone = useCallback(() => {
+        ringtoneRef.current.play().catch(err => {
+            console.warn('[WebRTC] 🔊 Ringtone autoplay blocked:', err.message);
+        });
+    }, []);
+
+    const stopRingtone = useCallback(() => {
+        const ringtone = ringtoneRef.current;
+        ringtone.pause();
+        ringtone.currentTime = 0;
+    }, []);
+
+    const showCallNotification = useCallback((fromName, type) => {
+        if ('Notification' in window && Notification.permission === 'granted') {
+            const notification = new Notification(`Incoming ${type} Call`, {
+                body: `${fromName} is calling you...`,
+                icon: '/logo192.png', // Fallback to app logo
+                tag: 'incoming-call',
+                renotify: true,
+                silent: true // We handle audio separately via ringtoneRef
+            });
+
+            notification.onclick = () => {
+                window.focus();
+                notification.close();
+            };
+        }
+    }, []);
 
     // Fetch Metered ICE servers on mount
     useEffect(() => {
@@ -107,10 +153,15 @@ export const useWebRTC = (userId, userName) => {
             setCallState('ringing');
             setCallType(data.callType);
             setRemoteUserId(data.from);
+            
+            // Play ringtone and show notification
+            playRingtone();
+            showCallNotification(data.fromName, data.callType);
         });
 
         // Call answered — set remote description (caller side)
         socket.on('call-answered', async ({ answer }) => {
+            stopRingtone(); // Stop ringtone when caller sees it's answered
             try {
                 const pc = peerRef.current;
                 console.log('[WebRTC] 📥 call-answered received | signalingState:', pc?.signalingState);
@@ -152,6 +203,7 @@ export const useWebRTC = (userId, userName) => {
         // Call rejected
         socket.on('call-rejected', ({ reason }) => {
             console.log('Call rejected:', reason);
+            stopRingtone();
             cleanup();
             setCallState('idle');
         });
@@ -159,6 +211,7 @@ export const useWebRTC = (userId, userName) => {
         // Call ended by remote
         socket.on('call-ended', () => {
             console.log('Call ended by remote');
+            stopRingtone();
             cleanup();
             setCallState('idle');
         });
@@ -166,6 +219,7 @@ export const useWebRTC = (userId, userName) => {
         // Call failed (user offline)
         socket.on('call-failed', ({ reason }) => {
             console.log('Call failed:', reason);
+            stopRingtone();
             cleanup();
             setCallState('idle');
             alert(reason || 'Call failed');
@@ -173,10 +227,12 @@ export const useWebRTC = (userId, userName) => {
 
         return () => {
             socket.disconnect();
+            stopRingtone();
             cleanup();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [userId]);
+    }, [userId, playRingtone, stopRingtone, showCallNotification]);
+
 
     const startDurationTimer = () => {
         setCallDuration(0);
@@ -349,6 +405,7 @@ export const useWebRTC = (userId, userName) => {
     // Answer an incoming call
     const answerCall = useCallback(async () => {
         if (!incomingCall) return;
+        stopRingtone();
 
         try {
             console.log('[WebRTC] 📥 Answering', incomingCall.callType, 'call from:', incomingCall.from);
@@ -401,7 +458,7 @@ export const useWebRTC = (userId, userName) => {
                 alert('Please allow camera/microphone access to answer calls.');
             }
         }
-    }, [incomingCall, createPeerConnection, cleanup]);
+    }, [incomingCall, createPeerConnection, cleanup, stopRingtone]);
 
     // Reject incoming call
     const rejectCall = useCallback(() => {
@@ -411,18 +468,20 @@ export const useWebRTC = (userId, userName) => {
                 reason: 'Call rejected'
             });
         }
+        stopRingtone();
         cleanup();
         setCallState('idle');
-    }, [incomingCall, cleanup]);
+    }, [incomingCall, cleanup, stopRingtone]);
 
     // End call
     const endCall = useCallback(() => {
         if (remoteUserId && socketRef.current) {
             socketRef.current.emit('end-call', { to: remoteUserId });
         }
+        stopRingtone();
         cleanup();
         setCallState('idle');
-    }, [remoteUserId, cleanup]);
+    }, [remoteUserId, cleanup, stopRingtone]);
 
     // Toggle microphone
     const toggleMic = useCallback(() => {

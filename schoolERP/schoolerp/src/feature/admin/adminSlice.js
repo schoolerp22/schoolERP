@@ -303,6 +303,39 @@ export const getSubjectWiseAnalytics = createAsyncThunk(
     }
 );
 
+// ==================== LESSON PLANS ADMIN ====================
+const LESSON_PLAN_API = `${process.env.REACT_APP_API_URL}/api/lesson-plans`;
+
+export const getPendingLessonPlans = createAsyncThunk(
+    "admin/getPendingLessonPlans",
+    async (params = {}, { rejectWithValue }) => {
+        try {
+            // Default to fetching Submitted plans
+            const query = new URLSearchParams({ approval_status: "Submitted", ...params }).toString();
+            const response = await axios.get(`${LESSON_PLAN_API}?${query}`);
+            return response.data; // { data, total, page, limit, totalPages }
+        } catch (error) {
+            return rejectWithValue(error.response?.data || error.message);
+        }
+    }
+);
+
+export const approveLessonPlan = createAsyncThunk(
+    "admin/approveLessonPlan",
+    async ({ id, status, adminId, comment }, { rejectWithValue }) => {
+        try {
+            const response = await axios.put(`${LESSON_PLAN_API}/${id}/approval`, {
+                status, // "Approved" or "Rejected"
+                admin_id: adminId,
+                comment
+            });
+            return { ...response.data, id, status };
+        } catch (error) {
+            return rejectWithValue(error.response?.data || error.message);
+        }
+    }
+);
+
 // ==================== INITIAL STATE ====================
 
 const initialState = {
@@ -333,6 +366,9 @@ const initialState = {
     teachersAttendanceData: [],
     teacherAttendanceBacklogs: [],
     teacherLeaveRequests: [],
+
+    // Lesson Plans Admin
+    pendingLessonPlans: { data: [], totalPages: 1, limit: 10, total: 0 },
 
     // UI State
     loading: false,
@@ -596,6 +632,35 @@ const adminSlice = createSlice({
                 state.successMessage = action.payload.message;
             })
             .addCase(approveTeacherAttendanceBacklog.rejected, (state, action) => {
+                state.loading = false;
+                state.error = action.payload;
+            })
+
+            // Lesson Plans
+            .addCase(getPendingLessonPlans.pending, (state) => {
+                state.loading = true;
+            })
+            .addCase(getPendingLessonPlans.fulfilled, (state, action) => {
+                state.loading = false;
+                state.pendingLessonPlans = action.payload;
+            })
+            .addCase(getPendingLessonPlans.rejected, (state, action) => {
+                state.loading = false;
+                state.error = action.payload;
+            })
+            .addCase(approveLessonPlan.pending, (state) => {
+                state.loading = true;
+            })
+            .addCase(approveLessonPlan.fulfilled, (state, action) => {
+                state.loading = false;
+                state.success = true;
+                state.successMessage = action.payload.message;
+                // remove from pending locally
+                if (state.pendingLessonPlans && state.pendingLessonPlans.data) {
+                    state.pendingLessonPlans.data = state.pendingLessonPlans.data.filter(p => p._id !== action.payload.id);
+                }
+            })
+            .addCase(approveLessonPlan.rejected, (state, action) => {
                 state.loading = false;
                 state.error = action.payload;
             });

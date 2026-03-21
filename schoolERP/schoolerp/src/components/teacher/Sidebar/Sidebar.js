@@ -5,7 +5,7 @@ import {
   Calendar, BookOpen, Bell, FileText,
   Home, Menu, X, Upload, BarChart3, LogOut,
   ClipboardCheck, CalendarDays, Clock, MessageSquare,
-  ChevronRight
+  ChevronRight, Book
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import LogoutConfirmModal from '../../common/LogoutConfirmModal';
@@ -21,6 +21,8 @@ const Sidebar = ({ profile, currentView, onViewChange, sidebarOpen, onToggleSide
     { id: 'attendance', icon: CalendarDays, label: 'Student Attendance' },
     { id: 'leaves', icon: Calendar, label: 'Leave Approvals' },
     { id: 'homework', icon: BookOpen, label: 'Homework' },
+    { id: 'syllabus', icon: Book, label: 'Syllabus' },
+    { id: 'lesson-plans', icon: FileText, label: 'Lesson Plans', badge: 'NEW', badgeColor: 'bg-indigo-500' },
     { id: 'announcements', icon: Bell, label: 'Announcements' },
     { id: 'class-chat', icon: MessageSquare, label: 'Class Chat' },
     { id: 'timetable', icon: Clock, label: 'Timetable' },

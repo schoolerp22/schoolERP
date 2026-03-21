@@ -2,13 +2,15 @@ import React from "react";
 import { useDispatch } from "react-redux";
 import { logout } from "../../../feature/auth/authSlice";
 import {
-  Home, BookOpen, Calendar, Bus, FileText, Bell, TrendingUp, DollarSign, LogOut, CheckCircle, Menu, X, MessageSquare
+  Home, BookOpen, Calendar, Bus, FileText, Bell, TrendingUp, DollarSign, LogOut, CheckCircle, Menu, X, MessageSquare, Book
 } from "lucide-react";
 import LogoutConfirmModal from "../../common/LogoutConfirmModal";
 
 const menuItems = [
   { id: "dashboard", label: "Dashboard", icon: Home },
   { id: "homework", label: "Homework", icon: BookOpen },
+  { id: "syllabus", label: "Syllabus", icon: Book, badge: "NEW", badgeColor: "bg-indigo-500" },
+  { id: "lesson-plans", label: "Lesson Plans", icon: BookOpen, badge: "NEW", badgeColor: "bg-teal-500" },
   { id: "attendance", label: "Attendance", icon: Calendar },
   { id: "exam", label: "Exam Marks", icon: FileText },
   {

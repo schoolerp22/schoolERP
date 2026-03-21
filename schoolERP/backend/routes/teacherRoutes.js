@@ -1072,6 +1072,100 @@ router.get("/:teacherId/announcements", async (req, res) => {
   }
 });
 
+// ==================== SYLLABUS ROUTES ====================
+
+// @route   POST /api/teacher/:teacherId/syllabus
+// @desc    Upload a new syllabus
+router.post("/:teacherId/syllabus", upload.single('attachment'), async (req, res) => {
+  try {
+    const db = getDB(req);
+    const { title, description, subject, classSection, teacher } = req.body;
+
+    let teacherObj = teacher;
+    if (typeof teacher === 'string') {
+      try { teacherObj = JSON.parse(teacher); } catch (e) {}
+    }
+
+    const syllabus = {
+      teacher: {
+        id: teacherObj?.id || req.params.teacherId,
+        name: teacherObj?.name || "Unknown Teacher"
+      },
+      title,
+      description,
+      subject,
+      class_section: classSection,
+      attachment: req.file ? `/uploads/${req.file.filename}` : null,
+      attachment_original_name: req.file ? req.file.originalname : null,
+      created_at: new Date(),
+      status: "Active"
+    };
+
+    const result = await db.collection("syllabus").insertOne(syllabus);
+    res.status(201).json({ message: "Syllabus uploaded successfully", syllabusId: result.insertedId });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   PUT /api/teacher/:teacherId/syllabus/:syllabusId
+// @desc    Update a syllabus
+router.put("/:teacherId/syllabus/:syllabusId", upload.single('attachment'), async (req, res) => {
+  try {
+    const db = getDB(req);
+    const { title, description, subject, classSection } = req.body;
+    
+    const updateData = {
+      title, description, subject, class_section: classSection, updated_at: new Date()
+    };
+
+    if (req.file) {
+      updateData.attachment = `/uploads/${req.file.filename}`;
+      updateData.attachment_original_name = req.file.originalname;
+    }
+
+    const result = await db.collection("syllabus").updateOne(
+      { _id: new ObjectId(req.params.syllabusId) },
+      { $set: updateData }
+    );
+
+    if (result.matchedCount === 0) return res.status(404).json({ message: "Syllabus not found" });
+    res.json({ message: "Syllabus updated successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   DELETE /api/teacher/:teacherId/syllabus/:syllabusId
+// @desc    Delete a syllabus
+router.delete("/:teacherId/syllabus/:syllabusId", async (req, res) => {
+  try {
+    const db = getDB(req);
+    const result = await db.collection("syllabus").deleteOne({ _id: new ObjectId(req.params.syllabusId) });
+    if (result.deletedCount === 0) return res.status(404).json({ message: "Syllabus not found" });
+    res.json({ message: "Syllabus deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   GET /api/teacher/:teacherId/syllabus
+// @desc    Get all syllabi uploaded by teacher
+router.get("/:teacherId/syllabus", async (req, res) => {
+  try {
+    const db = getDB(req);
+    const syllabi = await db.collection("syllabus").find({
+      $or: [
+        { "teacher.id": req.params.teacherId },
+        { teacher_id: req.params.teacherId }
+      ]
+    }).sort({ created_at: -1 }).toArray();
+    res.json(syllabi);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // @route   POST /api/teacher/:teacherId/leave-approval
 // @desc    Approve/reject student leave request
 router.post("/:teacherId/leave-approval", async (req, res) => {

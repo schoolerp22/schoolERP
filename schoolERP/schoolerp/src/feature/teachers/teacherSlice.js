@@ -196,6 +196,60 @@ export const deleteAnnouncement = createAsyncThunk(
   }
 );
 
+// Get Syllabus
+export const getSyllabus = createAsyncThunk(
+  "teacher/getSyllabus",
+  async (teacherId, { rejectWithValue }) => {
+    try {
+      const response = await axios.get(`${API_URL}/${teacherId}/syllabus`);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+// Upload Syllabus
+export const uploadSyllabus = createAsyncThunk(
+  "teacher/uploadSyllabus",
+  async ({ teacherId, syllabusData }, { rejectWithValue }) => {
+    try {
+      const config = { headers: { "Content-Type": "multipart/form-data" } };
+      const response = await axios.post(`${API_URL}/${teacherId}/syllabus`, syllabusData, config);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+// Update Syllabus (PUT)
+export const updateSyllabus = createAsyncThunk(
+  "teacher/updateSyllabus",
+  async ({ teacherId, syllabusId, syllabusData }, { rejectWithValue }) => {
+    try {
+      const config = { headers: { "Content-Type": "multipart/form-data" } };
+      const response = await axios.put(`${API_URL}/${teacherId}/syllabus/${syllabusId}`, syllabusData, config);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+// Delete Syllabus
+export const deleteSyllabus = createAsyncThunk(
+  "teacher/deleteSyllabus",
+  async ({ teacherId, syllabusId }, { rejectWithValue }) => {
+    try {
+      await axios.delete(`${API_URL}/${teacherId}/syllabus/${syllabusId}`);
+      return syllabusId; // Return ID to filter out from state
+    } catch (error) {
+      return rejectWithValue(error.response?.data || error.message || "Something went wrong");
+    }
+  }
+);
+
 // Get announcements
 export const getAnnouncements = createAsyncThunk(
   "teacher/getAnnouncements",
@@ -578,6 +632,8 @@ const initialState = {
   attendanceSummary: [], // Added for overview
   homework: [],
   submissions: [], // For viewing homework submissions
+  syllabus: [], // For assigned syllabus
+  lessonPlans: { data: [], totalPages: 1, limit: 10, total: 0 },
   announcements: [],
   leaveRequests: [], // Pending requests
   allLeaveRequests: [], // Approved, Rejected, Pending
@@ -608,6 +664,8 @@ const initialState = {
     results: false,
     leaves: false,
     attendance: false,
+    syllabus: false,
+    lessonPlans: false,
     announcements: false,
     homework: false
   },
@@ -656,6 +714,64 @@ export const getTimetable = createAsyncThunk(
   }
 );
 
+// ==========================================
+// ENTERPRISE LESSON PLAN ACTIONS
+// ==========================================
+// Since it's a unified endpoint, we use the base API_URL without trailing /teacher
+const LESSON_PLAN_API = `${process.env.REACT_APP_API_URL}/api/lesson-plans`;
+
+export const createLessonPlan = createAsyncThunk("teacher/createLessonPlan", async (formData, { rejectWithValue }) => {
+  try {
+    const config = { headers: { "Content-Type": "multipart/form-data" } };
+    const response = await axios.post(LESSON_PLAN_API, formData, config);
+    return response.data;
+  } catch (error) { return rejectWithValue(error.response?.data || error.message); }
+});
+
+export const bulkCreateLessonPlans = createAsyncThunk("teacher/bulkCreateLessonPlans", async (payload, { rejectWithValue }) => {
+  try {
+    const response = await axios.post(`${LESSON_PLAN_API}/bulk`, payload);
+    return response.data;
+  } catch (error) { return rejectWithValue(error.response?.data || error.message); }
+});
+
+export const getLessonPlans = createAsyncThunk("teacher/getLessonPlans", async (params = {}, { rejectWithValue }) => {
+  try {
+    const query = new URLSearchParams(params).toString();
+    const response = await axios.get(`${LESSON_PLAN_API}?${query}`);
+    return response.data; // Will contain { data, total, page, limit, totalPages }
+  } catch (error) { return rejectWithValue(error.response?.data || error.message); }
+});
+
+export const updateLessonPlan = createAsyncThunk("teacher/updateLessonPlan", async ({ id, formData }, { rejectWithValue }) => {
+  try {
+    const config = { headers: { "Content-Type": "multipart/form-data" } };
+    const response = await axios.put(`${LESSON_PLAN_API}/${id}`, formData, config);
+    return response.data;
+  } catch (error) { return rejectWithValue(error.response?.data || error.message); }
+});
+
+export const deleteLessonPlan = createAsyncThunk("teacher/deleteLessonPlan", async (id, { rejectWithValue }) => {
+  try {
+    await axios.delete(`${LESSON_PLAN_API}/${id}`);
+    return id;
+  } catch (error) { return rejectWithValue(error.response?.data || error.message); }
+});
+
+export const submitLessonPlan = createAsyncThunk("teacher/submitLessonPlan", async ({ id, teacherId }, { rejectWithValue }) => {
+  try {
+    const response = await axios.put(`${LESSON_PLAN_API}/${id}/submit`, { teacher_id: teacherId });
+    return { ...response.data, id };
+  } catch (error) { return rejectWithValue(error.response?.data || error.message); }
+});
+
+export const updateLessonExecution = createAsyncThunk("teacher/updateLessonExecution", async ({ id, executionData }, { rejectWithValue }) => {
+  try {
+    const response = await axios.put(`${LESSON_PLAN_API}/${id}/execution`, executionData);
+    return { ...response.data, id, status: executionData.status };
+  } catch (error) { return rejectWithValue(error.response?.data || error.message); }
+});
+
 const teacherSlice = createSlice({
   name: "teacher",
   initialState,
@@ -668,6 +784,8 @@ const teacherSlice = createSlice({
       state.attendance = [];
       state.attendanceSummary = [];
       state.homework = [];
+      state.syllabus = [];
+      state.lessonPlans = { data: [], totalPages: 1, limit: 10, total: 0 };
       state.announcements = [];
       state.leaveRequests = [];
       state.allLeaveRequests = [];
@@ -867,6 +985,59 @@ const teacherSlice = createSlice({
         state.announcements = state.announcements.filter(a => a._id !== action.payload);
       })
       .addCase(deleteAnnouncement.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // Get Syllabus
+      .addCase(getSyllabus.pending, (state) => {
+        state.loadings.syllabus = true;
+      })
+      .addCase(getSyllabus.fulfilled, (state, action) => {
+        state.loadings.syllabus = false;
+        state.syllabus = action.payload;
+      })
+      .addCase(getSyllabus.rejected, (state, action) => {
+        state.loadings.syllabus = false;
+        state.error = action.payload;
+      })
+
+      // Upload Syllabus
+      .addCase(uploadSyllabus.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(uploadSyllabus.fulfilled, (state) => {
+        state.loading = false;
+        state.success = true;
+      })
+      .addCase(uploadSyllabus.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // Update Syllabus
+      .addCase(updateSyllabus.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(updateSyllabus.fulfilled, (state) => {
+        state.loading = false;
+        state.success = true;
+      })
+      .addCase(updateSyllabus.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // Delete Syllabus
+      .addCase(deleteSyllabus.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(deleteSyllabus.fulfilled, (state, action) => {
+        state.loading = false;
+        state.success = true;
+        state.syllabus = state.syllabus.filter(s => s._id !== action.payload);
+      })
+      .addCase(deleteSyllabus.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
@@ -1154,7 +1325,59 @@ const teacherSlice = createSlice({
       .addCase(getSelfLeaves.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload?.message || "Failed to fetch leave history";
-      });
+      })
+      
+      // ==========================================
+      // ENTERPRISE LESSON PLAN REDUCERS
+      // ==========================================
+      .addCase(getLessonPlans.pending, (state) => {
+        state.loadings.lessonPlans = true;
+      })
+      .addCase(getLessonPlans.fulfilled, (state, action) => {
+        state.loadings.lessonPlans = false;
+        state.lessonPlans = action.payload; // expects { data, total, page, limit, totalPages }
+      })
+      .addCase(getLessonPlans.rejected, (state, action) => {
+        state.loadings.lessonPlans = false;
+        state.error = action.payload;
+      })
+      // creation
+      .addCase(createLessonPlan.pending, (state) => { state.loading = true; })
+      .addCase(createLessonPlan.fulfilled, (state) => { state.loading = false; state.success = true; })
+      .addCase(createLessonPlan.rejected, (state, action) => { state.loading = false; state.error = action.payload; })
+      // bulk
+      .addCase(bulkCreateLessonPlans.pending, (state) => { state.loading = true; })
+      .addCase(bulkCreateLessonPlans.fulfilled, (state) => { state.loading = false; state.success = true; })
+      .addCase(bulkCreateLessonPlans.rejected, (state, action) => { state.loading = false; state.error = action.payload; })
+      // edit
+      .addCase(updateLessonPlan.pending, (state) => { state.loading = true; })
+      .addCase(updateLessonPlan.fulfilled, (state) => { state.loading = false; state.success = true; })
+      .addCase(updateLessonPlan.rejected, (state, action) => { state.loading = false; state.error = action.payload; })
+      // submit
+      .addCase(submitLessonPlan.pending, (state) => { state.loading = true; })
+      .addCase(submitLessonPlan.fulfilled, (state, action) => { 
+        state.loading = false; state.success = true; 
+        const plan = state.lessonPlans.data.find(p => p._id === action.payload.id);
+        if (plan) plan.approval_status = "Submitted";
+      })
+      .addCase(submitLessonPlan.rejected, (state, action) => { state.loading = false; state.error = action.payload; })
+      // execution
+      .addCase(updateLessonExecution.pending, (state) => { state.loading = true; })
+      .addCase(updateLessonExecution.fulfilled, (state, action) => { 
+        state.loading = false; state.success = true; 
+        const plan = state.lessonPlans.data.find(p => p._id === action.payload.id);
+        if (plan) plan.status = action.payload.status;
+      })
+      .addCase(updateLessonExecution.rejected, (state, action) => { state.loading = false; state.error = action.payload; })
+      // delete
+      .addCase(deleteLessonPlan.pending, (state) => { state.loading = true; })
+      .addCase(deleteLessonPlan.fulfilled, (state, action) => { 
+        state.loading = false; state.success = true; 
+        if (state.lessonPlans && state.lessonPlans.data) {
+           state.lessonPlans.data = state.lessonPlans.data.filter(p => p._id !== action.payload);
+        }
+      })
+      .addCase(deleteLessonPlan.rejected, (state, action) => { state.loading = false; state.error = action.payload; });
   },
 });
 

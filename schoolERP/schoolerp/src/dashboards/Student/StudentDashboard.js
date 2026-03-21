@@ -38,7 +38,7 @@ import {
 
 const StudentDashboard = () => {
   const dispatch = useDispatch();
-  const { profile, homework, attendance, exams, payments, transport, timetable, announcements, results, analytics, loading, error } =
+  const { profile, homework, attendance, exams, payments, transport, timetable, announcements, results, analytics, error } =
     useSelector((state) => state.student);
   const { user } = useSelector((state) => state.auth);
   const studentId = user?.admission_no || user?.id;

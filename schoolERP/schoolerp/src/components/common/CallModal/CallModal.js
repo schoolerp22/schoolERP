@@ -38,7 +38,13 @@ const CallModal = ({
     // on EVERY render, resetting srcObject and causing the camera flicker
     const setRemoteVideoRef = useCallback((el) => {
         remoteVideoRef.current = el;
-        if (el && remoteStream) el.srcObject = remoteStream;
+        if (el && remoteStream) {
+            el.srcObject = remoteStream;
+            // Explicitly play to overcome mobile autoplay restrictions
+            el.play().catch(err => {
+                console.warn('[WebRTC] 🔊 Remote stream play blocked or failed:', err.message);
+            });
+        }
     }, [remoteStream]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const setLocalVideoRef = useCallback((el) => {
@@ -148,9 +154,20 @@ const CallModal = ({
                                 </div>
                                 <h3>Voice Call Connected</h3>
 
-                                {/* Hidden video refs for audio calls */}
-                                <video ref={setRemoteVideoRef} autoPlay playsInline style={{ display: 'none' }} />
-                                <video ref={setLocalVideoRef} autoPlay playsInline muted style={{ display: 'none' }} />
+                                 {/* Hidden video refs for audio calls — Avoid display: none as it stops audio on some mobile browsers */}
+                                <video 
+                                    ref={setRemoteVideoRef} 
+                                    autoPlay 
+                                    playsInline 
+                                    style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', height: 0, width: 0 }} 
+                                />
+                                <video 
+                                    ref={setLocalVideoRef} 
+                                    autoPlay 
+                                    playsInline 
+                                    muted 
+                                    style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', height: 0, width: 0 }} 
+                                />
                             </div>
                         )}
 

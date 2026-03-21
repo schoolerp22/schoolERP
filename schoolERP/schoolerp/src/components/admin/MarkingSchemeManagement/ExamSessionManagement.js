@@ -40,9 +40,14 @@ const ExamSessionManagement = () => {
             // Fallback if endpoint missing
             setExamTypes([
                 { code: "FA1", label: "Formative Assessment 1 (FA1)", term: 1 },
-                { code: "SA1", label: "Summative Assessment 1 / Half Yearly", term: 1 },
+                { code: "FA2", label: "Formative Assessment 2 (FA2)", term: 1 },
+                { code: "SA1", label: "Summative Assessment 1", term: 1 },
                 { code: "WEEKLY_TEST", label: "Weekly Test", term: 1 },
-                { code: "UNIT_TEST", label: "Unit Test", term: 1 }
+                { code: "UNIT_TEST", label: "Unit Test", term: 1 },
+                { code: "FA3", label: "Formative Assessment 3 (FA3)", term: 2 },
+                { code: "FA4", label: "Formative Assessment 4 (FA4)", term: 2 },
+                { code: "SA2", label: "Summative Assessment 2 / Annual", term: 2 },
+                { code: "PERIODIC_TEST2", label: "Periodic Test 2", term: 2 }
             ]);
         }
     };
@@ -65,6 +70,12 @@ const ExamSessionManagement = () => {
         fetchExamTypes();
         fetchSessions();
     }, []);
+
+    // Reset exam_type when term changes to avoid mismatch
+    useEffect(() => {
+        setFormData(prev => ({ ...prev, exam_type: '' }));
+    }, [formData.term]);
+
 
     const handleClassToggle = (cls) => {
         setFormData(prev => ({
@@ -168,9 +179,11 @@ const ExamSessionManagement = () => {
                                     required
                                 >
                                     <option value="">Select CBSE Internal Mapping</option>
-                                    {examTypes.map((t, idx) => (
-                                        <option key={idx} value={t.code}>{t.label} (Term {t.term})</option>
-                                    ))}
+                                    {examTypes
+                                        .filter(t => t.term === formData.term || t.term === null)
+                                        .map((t, idx) => (
+                                            <option key={idx} value={t.code}>{t.label} (Term {t.term || 'General'})</option>
+                                        ))}
                                 </select>
                             </div>
 
